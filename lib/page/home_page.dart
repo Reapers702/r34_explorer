@@ -3,6 +3,7 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 import 'package:r34_video/page/component/page_search_bottom_sheet.dart';
 import 'package:r34_video/page/component/video_thumb.dart';
+import 'package:r34_video/page/page_routes.dart';
 import 'package:r34_video/repo/entity/r34_page.dart';
 import 'package:r34_video/repo/entity/r34_search_option.dart';
 import 'package:r34_video/repo/r34_repo.dart';
@@ -19,6 +20,12 @@ class _HomePageState extends State<HomePage> {
   PersistentBottomSheetController? _bottomSheetController;
   final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
 
+  @override
+  void initState() {
+    super.initState();
+    _loadData(R34SearchOption());
+  }
+
   void _loadData(R34SearchOption option) async {
     try {
       final newR34Page = await R34Repo.getPage(option);
@@ -30,10 +37,19 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  @override
-  void initState() {
-    super.initState();
-    _loadData(R34SearchOption());
+  void _showBottomSheet() {
+    if (_bottomSheetController == null) {
+      _bottomSheetController = scaffoldKey.currentState?.showBottomSheet(
+        (context) => PageSearchBottomSheet(
+          onSearch: (p0) => _loadData(p0),
+        ),
+        backgroundColor: Colors.purple.shade50,
+      );
+      _bottomSheetController!.closed
+          .then((value) => _bottomSheetController = null);
+    } else {
+      _bottomSheetController!.close();
+    }
   }
 
   @override
@@ -46,23 +62,14 @@ class _HomePageState extends State<HomePage> {
         automaticallyImplyLeading: false,
         actions: [
           IconButton(
-              onPressed: () {
-                log('switch filter');
-                if (_bottomSheetController == null) {
-                  _bottomSheetController =
-                      scaffoldKey.currentState?.showBottomSheet(
-                    (context) => PageSearchBottomSheet(
-                      onSearch: (p0) => _loadData(p0),
-                    ),
-                    backgroundColor: Colors.purple.shade50,
-                  );
-                  _bottomSheetController!.closed
-                      .then((value) => _bottomSheetController = null);
-                } else {
-                  _bottomSheetController!.close();
-                }
-              },
-              icon: const Icon(Icons.filter_alt))
+            onPressed: () => _showBottomSheet(),
+            icon: const Icon(Icons.filter_alt),
+          ),
+          IconButton(
+            onPressed: () =>
+                Navigator.of(context).pushNamed(PageRoutes.tempPage),
+            icon: const Icon(Icons.temple_hindu),
+          ),
         ],
       ),
       body: Container(

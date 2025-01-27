@@ -1,4 +1,5 @@
 import 'dart:developer';
+import 'dart:io';
 
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -6,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:r34_video/repo/entity/r34_page.dart';
 import 'package:r34_video/repo/entity/r34_video_info.dart';
 import 'package:r34_video/repo/r34_repo.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class DetailPageArg {
   final R34Video r34video;
@@ -14,6 +16,27 @@ class DetailPageArg {
 
 class DetailPage extends StatelessWidget {
   const DetailPage({super.key});
+
+  void openVideo(String url) async {
+    if (Platform.isAndroid) {
+      final intent = AndroidIntent(
+        action: 'android.intent.action.VIEW',
+        data: url,
+        type: 'video/*',
+      );
+      intent.launchChooser('Choose an App');
+    } else {
+      final uri = Uri.parse(url);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(
+          uri,
+          mode: LaunchMode.externalNonBrowserApplication,
+        );
+      } else {
+        log('Could not launch $uri');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,47 +53,31 @@ class DetailPage extends StatelessWidget {
       body: FutureBuilder<R34VideoInfo>(
         future: future,
         builder: (context, snapshot) {
-          final data = snapshot.data;
-          if (data == null) {
+          final videoDetail = snapshot.data;
+          if (videoDetail == null) {
             return Center(
               child: Text('Data Still Loading'),
             );
           }
 
-          final resolutions = data.downloadUrls.keys.toList();
+          final resolutions = videoDetail.downloadUrls.keys.toList();
           return Column(
             children: [
               Expanded(
-                  flex: 1,
-                  child: CachedNetworkImage(imageUrl: data.thumbImageUrl!)),
+                flex: 1,
+                child: CachedNetworkImage(imageUrl: videoDetail.thumbImageUrl!),
+              ),
               Expanded(
                 flex: 2,
                 child: ListView.separated(
                     itemBuilder: (context, index) {
+                      final resolution = resolutions[index];
                       return ElevatedButton(
-                          onPressed: () async {
-                            final url = data.downloadUrls[resolutions[index]]!;
-                            log('url: $url');
-
-                            final intent = AndroidIntent(
-                              action: 'android.intent.action.VIEW',
-                              data: url,
-                              type: 'video/*',
-                            );
-                            intent.launchChooser('选择应用打开');
-
-                            // if (await canLaunchUrl(uri)) {
-                            //   await launchUrl(
-                            //     uri,
-                            //     mode: LaunchMode.externalNonBrowserApplication,
-                            //   );
-                            // } else {
-                            //   log('Could not launch $uri');
-                            // }
-                          },
-                          child: Text(
-                            resolutions[index],
-                          ));
+                        onPressed: () async => openVideo(
+                          videoDetail.downloadUrls[resolution]!,
+                        ),
+                        child: Text(resolution),
+                      );
                     },
                     separatorBuilder: (context, index) =>
                         const SizedBox(height: 10),
