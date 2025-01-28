@@ -2,7 +2,7 @@ import 'dart:collection';
 
 import 'package:flutter/material.dart';
 import 'package:r34_video/page/component/single_radio_text.dart';
-import 'package:r34_video/repo/entity/r34_search_option.dart';
+import 'package:r34_video/constant/search_option.dart';
 
 class PageSearchBottomSheet extends StatefulWidget {
   final Function(R34SearchOption) onSearch;

@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:r34_video/page/page_routes.dart';
+import 'package:r34_video/constant/page_routes.dart';
 
 void main() {
   runApp(const MyApp());
@@ -13,32 +13,12 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
-        useMaterial3: true,
+        colorScheme: ColorScheme.fromSeed(seedColor: Colors.white),
+        useMaterial3: false,
       ),
       debugShowCheckedModeBanner: false,
       routes: PageRoutes.routes,
-      initialRoute: PageRoutes.homePage,
+      initialRoute: PageRoutes.indexPage,
     );
   }
 }
-
-
-// return GestureDetector(
-//   onTap: () async {
-//     log(data[index].previewUrl);
-//     final Uri uri = Uri.parse(data[index].previewUrl);
-//     if (await canLaunchUrl(uri)) {
-//       await launchUrl(
-//         uri,
-//         mode: LaunchMode.externalApplication,
-//       );
-//     } else {
-//       log('Could not launch $uri');
-//     }
-//   },
-//   child: Text(
-//     data[index].title,
-//     overflow: TextOverflow.ellipsis,
-//   ),
-// );

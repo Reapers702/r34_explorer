@@ -1,11 +1,12 @@
 import 'dart:convert';
 import 'dart:developer';
 
+import 'package:r34_video/constant/search_option.dart';
 import 'package:r34_video/repo/entity/r34_page.dart';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as parser;
-import 'package:r34_video/repo/entity/r34_search_option.dart';
 import 'package:r34_video/repo/entity/r34_video_info.dart';
+import 'package:r34_video/util/toast_util.dart';
 
 class R34Repo {
   static const String host =
@@ -38,6 +39,7 @@ class R34Repo {
       );
     } catch (e) {
       log('getPageError: $e');
+      ToastUtil.showToast(e.toString());
     }
 
     final document = parser.parse(res!.body);
@@ -63,7 +65,7 @@ class R34Repo {
     }
 
     final r34Page = R34Page(videos: data);
-    log('getPage: ${jsonEncode(r34Page.toJson())}');
+    // log('getPage: ${jsonEncode(r34Page.toJson())}');
     return r34Page;
   }
 
