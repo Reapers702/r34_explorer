@@ -1,8 +1,9 @@
-import 'dart:collection';
-
 import 'package:flutter/material.dart';
 import 'package:r34_video/page/component/single_radio_text.dart';
 import 'package:r34_video/constant/search_option.dart';
+
+// 这个组件是一个早期的测试组件，后面会进行重构
+// 目前使用 HomePageBottomSheet 替代
 
 class PageSearchBottomSheet extends StatefulWidget {
   final Function(R34SearchOption) onSearch;
@@ -120,12 +121,7 @@ class _PageSearchBottomSheetState extends State<PageSearchBottomSheet>
                     const SizedBox(height: 20),
                     SingleRadioText(
                       controller: optionDurationController,
-                      values: LinkedHashMap.from({
-                        'all': VideoDuration.all,
-                        'lessThanOneMin': VideoDuration.lessThanOneMin,
-                        'oneMinToFiveMin': VideoDuration.oneMinToFiveMin,
-                        'moreThanFiveMin': VideoDuration.moreThanFiveMin,
-                      }),
+                      values: VideoDuration.descriptionMap,
                       defaultSelect: 'all',
                       fontSize: 16,
                     ),

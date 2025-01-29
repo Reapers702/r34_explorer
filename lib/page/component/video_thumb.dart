@@ -5,22 +5,30 @@ import 'package:r34_video/constant/page_routes.dart';
 import 'package:r34_video/repo/entity/r34_page.dart';
 
 class VideoThumb extends StatelessWidget {
-  final R34Video r34video;
+  final R34Video? r34video;
   static const double fontSize = 12;
   static const double imgTextSpacing = 6;
 
   const VideoThumb(this.r34video, {super.key});
 
+  static VideoThumb fromLoading() {
+    return VideoThumb(null);
+  }
+
   @override
   Widget build(BuildContext context) {
-    double maxWidth = MediaQuery.of(context).size.width * 0.47;
-    double maxHeight = maxWidth * 9 / 16;
+    if (r34video == null) {
+      return _buildLoading(context);
+    }
+
+    double imgMaxWidth = MediaQuery.of(context).size.width * 0.47;
+    double imgMaxHeight = imgMaxWidth * 9 / 16;
 
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: Container(
         color: Colors.white,
-        height: maxHeight + imgTextSpacing * 2 + fontSize * 3,
+        height: imgMaxHeight + imgTextSpacing * 2 + fontSize * 3,
         child: Column(
           children: [
             Stack(
@@ -31,13 +39,13 @@ class VideoThumb extends StatelessWidget {
                     Navigator.pushNamed(
                       context,
                       PageRoutes.detailPage,
-                      arguments: DetailPageArg(r34video),
+                      arguments: DetailPageArg(r34video!),
                     );
                   },
                   child: CachedNetworkImage(
-                    imageUrl: r34video.thumbImageUrl,
-                    width: maxWidth,
-                    height: maxHeight,
+                    imageUrl: r34video!.thumbImageUrl,
+                    width: imgMaxWidth,
+                    height: imgMaxHeight,
                     fit: BoxFit.fill,
                     progressIndicatorBuilder:
                         (context, url, downloadProgress) =>
@@ -56,7 +64,7 @@ class VideoThumb extends StatelessWidget {
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Text(
-                      r34video.videoDuration,
+                      r34video!.videoDuration,
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 8,
@@ -70,9 +78,42 @@ class VideoThumb extends StatelessWidget {
             SizedBox(height: 6),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6),
-              width: maxWidth,
+              width: imgMaxWidth,
               child: Text(
-                r34video.title,
+                r34video!.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: fontSize),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLoading(BuildContext context) {
+    double imgMaxWidth = MediaQuery.of(context).size.width * 0.47;
+    double imgMaxHeight = imgMaxWidth * 9 / 16;
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        color: Colors.white,
+        height: imgMaxHeight + imgTextSpacing * 2 + fontSize * 3,
+        child: Column(
+          children: [
+            SizedBox(
+              width: imgMaxWidth,
+              height: imgMaxHeight,
+              child: LinearProgressIndicator(),
+            ),
+            SizedBox(height: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              width: imgMaxWidth,
+              child: Text(
+                'Loading ...',
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(fontSize: fontSize),

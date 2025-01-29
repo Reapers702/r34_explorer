@@ -6,7 +6,7 @@ import 'package:r34_video/repo/entity/r34_page.dart';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as parser;
 import 'package:r34_video/repo/entity/r34_video_info.dart';
-import 'package:r34_video/util/toast_util.dart';
+import 'package:r34_video/util/http_trace_util.dart';
 
 class R34Repo {
   static const String host =
@@ -33,13 +33,23 @@ class R34Repo {
   static Future<R34Page> getPage(R34SearchOption option) async {
     http.Response? res;
     try {
-      res = await http.get(
-        Uri.parse('$host&_=${DateTime.now().millisecondsSinceEpoch}'),
-        headers: headers,
-      );
+      Uri uri = Uri.https('rule34video.com', '/', {
+        'mode': 'async',
+        'function': 'get_block',
+        'block_id': 'custom_list_videos_most_recent_videos',
+        'tag_ids': '',
+        'sort_by': option.sortType.officialTag,
+        '_': '${DateTime.now().millisecondsSinceEpoch}',
+        'from': option.officialPage,
+      });
+      res = await http
+          .get(
+            uri,
+            headers: headers,
+          )
+          .timeout(const Duration(seconds: 10));
     } catch (e) {
-      log('getPageError: $e');
-      ToastUtil.showToast(e.toString());
+      HttpTraceUtil.handleConnectionError(e);
     }
 
     final document = parser.parse(res!.body);
@@ -64,7 +74,19 @@ class R34Repo {
       ));
     }
 
-    final r34Page = R34Page(videos: data);
+    int pageCount = 1;
+    final pageBtns = document
+        .getElementById('custom_list_videos_most_recent_videos_pagination')!;
+    for (var pageBtn in pageBtns.getElementsByTagName('a')) {
+      if (pageBtn.text.trim() == 'Last') {
+        final href = pageBtn.attributes['href']!;
+        final splitPart = href.split('/')..removeLast();
+        pageCount = int.parse(splitPart.last);
+        break;
+      }
+    }
+
+    final r34Page = R34Page(videos: data, pageCount: pageCount);
     // log('getPage: ${jsonEncode(r34Page.toJson())}');
     return r34Page;
   }
@@ -74,7 +96,7 @@ class R34Repo {
     try {
       res = await http.get(Uri.parse(detailUrl), headers: headers);
     } catch (e) {
-      log('getVideoInfoError: $e');
+      HttpTraceUtil.handleConnectionError(e);
     }
 
     final resBody = res!.body;

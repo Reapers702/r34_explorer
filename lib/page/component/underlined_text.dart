@@ -114,7 +114,7 @@ class _UnderlinedTextState extends State<UnderlinedText>
 
   @override
   void didUpdateWidget(UnderlinedText oldWidget) {
-    log('did update widget ${widget.text}');
+    // log('did update widget ${widget.text}');
     super.didUpdateWidget(oldWidget);
     if (widget.isSelected != oldWidget.isSelected) {
       if (widget.isSelected) {

@@ -1,7 +1,8 @@
 class R34Page {
+  int pageCount;
   List<R34Video> videos = [];
 
-  R34Page({required this.videos});
+  R34Page({required this.videos, required this.pageCount});
 
   Map<String, dynamic> toJson() {
     return {

@@ -1,4 +1,5 @@
 import 'dart:collection';
+import 'dart:developer';
 
 import 'package:flutter/material.dart';
 
@@ -13,14 +14,17 @@ class SingleRadioTextController<T> {
 
 class SingleRadioText<T> extends StatefulWidget {
   final SingleRadioTextController<T>? controller;
+  final void Function(T)? onSelect;
+
   final LinkedHashMap<String, T> values;
   final String? defaultSelect;
   final double fontSize;
 
   const SingleRadioText({
     super.key,
-    this.controller,
     required this.values,
+    this.controller,
+    this.onSelect,
     this.defaultSelect,
     this.fontSize = 12,
   });
@@ -40,8 +44,10 @@ class _SingleRadioTextState extends State<SingleRadioText> {
 
   void _onSelect(String name) {
     setState(() {
+      log('_onSelect $name');
       nameSelect = name;
       widget.controller?._currVal = widget.values[name];
+      widget.onSelect?.call(widget.values[name]!);
     });
   }
 
@@ -51,26 +57,31 @@ class _SingleRadioTextState extends State<SingleRadioText> {
       spacing: 8,
       runSpacing: 8,
       children: widget.values.keys
-          .map((e) => GestureDetector(
-              onTap: () => _onSelect(e),
-              child: ElevatedButton(
-                  onPressed: () {},
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue, // 按钮背景颜色
-                    foregroundColor: Colors.white, // 文字颜色
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20), // 圆角
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12), // 内边距
-                    elevation: 3, // 阴影高度
-                  ),
-                  child: Text(
-                    e,
-                    style: TextStyle(
-                      fontSize: widget.fontSize,
-                    ),
-                  ))))
+          .map(
+            (e) => ElevatedButton(
+              onPressed: () => _onSelect(e),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: nameSelect == e
+                    ? Colors.orangeAccent
+                    : Colors.blue, // 按钮背景颜色
+                foregroundColor: Colors.white, // 文字颜色
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12), // 圆角
+                ),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 6,
+                ), // 内边距
+                elevation: 3, // 阴影高度
+              ),
+              child: Text(
+                e,
+                style: TextStyle(
+                  fontSize: widget.fontSize,
+                ),
+              ),
+            ),
+          )
           .toList(),
     );
   }
