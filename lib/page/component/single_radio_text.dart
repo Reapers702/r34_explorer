@@ -4,28 +4,28 @@ import 'dart:developer';
 import 'package:flutter/material.dart';
 
 class SingleRadioTextController<T> {
-  T? _currVal;
-  SingleRadioTextController();
+  T currVal;
+  final Map<String, T> nameMap;
 
-  T? get currVal {
-    return _currVal;
+  SingleRadioTextController({required this.currVal, required this.nameMap});
+
+  String get currName {
+    return nameMap.entries.firstWhere((e) => e.value == currVal)!.key;
   }
 }
 
 class SingleRadioText<T> extends StatefulWidget {
-  final SingleRadioTextController<T>? controller;
+  final SingleRadioTextController<T> controller;
   final void Function(T)? onSelect;
 
   final LinkedHashMap<String, T> values;
-  final String? defaultSelect;
   final double fontSize;
 
   const SingleRadioText({
     super.key,
     required this.values,
-    this.controller,
+    required this.controller,
     this.onSelect,
-    this.defaultSelect,
     this.fontSize = 12,
   });
 
@@ -39,14 +39,14 @@ class _SingleRadioTextState extends State<SingleRadioText> {
   @override
   void initState() {
     super.initState();
-    nameSelect = widget.defaultSelect ?? widget.values.keys.first;
+    nameSelect = widget.controller.currName;
   }
 
   void _onSelect(String name) {
     setState(() {
       log('_onSelect $name');
       nameSelect = name;
-      widget.controller?._currVal = widget.values[name];
+      widget.controller?.currVal = widget.values[name];
       widget.onSelect?.call(widget.values[name]!);
     });
   }

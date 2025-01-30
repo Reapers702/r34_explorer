@@ -13,12 +13,19 @@ enum MoveDirection {
 class HomePageBottomSheet extends StatefulWidget {
   static const bgColor = Color(0xFFF2F2F2);
   static const dragColor = Color(0xFFD4D4D4);
-  static const List<double> magnetPoint = [0, 0.2, 0.8];
+  static const List<double> magnetPoint = [0, 0.3, 0.8];
 
+  final VideoDateAdded defaultDateAdded;
+  final VideoDuration defaultDuration;
   final void Function(VideoDateAdded dateAdded, VideoDuration duration)?
       onOptionConfirm;
 
-  const HomePageBottomSheet({super.key, this.onOptionConfirm});
+  const HomePageBottomSheet({
+    super.key,
+    this.onOptionConfirm,
+    this.defaultDateAdded = VideoDateAdded.all,
+    this.defaultDuration = VideoDuration.all,
+  });
 
   @override
   State<HomePageBottomSheet> createState() => _HomePageBottomSheetState();
@@ -26,12 +33,10 @@ class HomePageBottomSheet extends StatefulWidget {
 
 class _HomePageBottomSheetState extends State<HomePageBottomSheet>
     with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
+  late final AnimationController _animationController;
 
-  final SingleRadioTextController dateAddedController =
-      SingleRadioTextController();
-  final SingleRadioTextController durationController =
-      SingleRadioTextController();
+  late final SingleRadioTextController<VideoDateAdded> _dateAddedController;
+  late final SingleRadioTextController<VideoDuration> _durationController;
 
   MoveDirection _moveDirection = MoveDirection.quiet;
 
@@ -41,10 +46,16 @@ class _HomePageBottomSheetState extends State<HomePageBottomSheet>
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
-      value: 0.2,
-      lowerBound: 0,
+      value: 0.3,
+      lowerBound: 0.2,
       upperBound: 1,
     );
+
+    _dateAddedController = SingleRadioTextController(
+        currVal: widget.defaultDateAdded,
+        nameMap: VideoDateAdded.descriptionMap);
+    _durationController = SingleRadioTextController(
+        currVal: widget.defaultDuration, nameMap: VideoDuration.descriptionMap);
   }
 
   _onDragFinish() {
@@ -99,7 +110,6 @@ class _HomePageBottomSheetState extends State<HomePageBottomSheet>
                 _moveDirection = delta > 0
                     ? MoveDirection.down
                     : (delta < 0 ? MoveDirection.up : MoveDirection.quiet);
-                // log('delta: $delta, value: ${_animationController.value}');
               },
               onVerticalDragEnd: (details) {
                 _onDragFinish();
@@ -138,8 +148,9 @@ class _HomePageBottomSheetState extends State<HomePageBottomSheet>
                           onPressed: () {
                             Navigator.pop(context);
                             widget.onOptionConfirm?.call(
-                              dateAddedController.currVal ?? VideoDateAdded.all,
-                              durationController.currVal ?? VideoDuration.all,
+                              _dateAddedController.currVal ??
+                                  VideoDateAdded.all,
+                              _durationController.currVal ?? VideoDuration.all,
                             );
                           },
                           child: Text('确定'),
@@ -160,7 +171,7 @@ class _HomePageBottomSheetState extends State<HomePageBottomSheet>
                         Expanded(
                             child: SingleRadioText(
                           values: VideoDateAdded.descriptionMap,
-                          controller: dateAddedController,
+                          controller: _dateAddedController,
                         )),
                       ],
                     ),
@@ -178,7 +189,7 @@ class _HomePageBottomSheetState extends State<HomePageBottomSheet>
                         Expanded(
                             child: SingleRadioText(
                           values: VideoDuration.descriptionMap,
-                          controller: durationController,
+                          controller: _durationController,
                         )),
                       ],
                     ),

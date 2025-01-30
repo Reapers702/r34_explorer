@@ -19,7 +19,8 @@ class _PageSearchBottomSheetState extends State<PageSearchBottomSheet>
   bool onTap = false;
 
   SingleRadioTextController<VideoDuration> optionDurationController =
-      SingleRadioTextController<VideoDuration>();
+      SingleRadioTextController<VideoDuration>(
+          currVal: VideoDuration.all, nameMap: VideoDuration.descriptionMap);
 
   @override
   void initState() {
@@ -122,7 +123,6 @@ class _PageSearchBottomSheetState extends State<PageSearchBottomSheet>
                     SingleRadioText(
                       controller: optionDurationController,
                       values: VideoDuration.descriptionMap,
-                      defaultSelect: 'all',
                       fontSize: 16,
                     ),
                   ],

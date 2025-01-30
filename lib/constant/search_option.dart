@@ -20,6 +20,16 @@ class R34SearchOption {
     }
     return sortType == other.sortType &&
         duration == other.duration &&
+        dateAdded == other.dateAdded &&
+        page == other.page;
+  }
+
+  bool filterEquals(R34SearchOption? other) {
+    if (other == null) {
+      return false;
+    }
+    return sortType == other.sortType &&
+        duration == other.duration &&
         dateAdded == other.dateAdded;
   }
 
@@ -89,6 +99,24 @@ enum VideoDuration {
     '10分以下': less10Min,
     '20分以下': less20Min,
   });
+
+  String get cookieValue {
+    final cookieMap = <VideoDuration, Map<String, String>>{
+          more1Min: {'duration_from': '60'},
+          more5Min: {'duration_from': '300'},
+          more10Min: {'duration_from': '600'},
+          more20Min: {'duration_from': '1200'},
+          more30Min: {'duration_from': '1800'},
+          more60Min: {'duration_from': '3600'},
+          less10Min: {'duration_from': '1', 'duration_to': '600'},
+          less20Min: {'duration_from': '1', 'duration_to': '1200'},
+        }[this] ??
+        {};
+    if (cookieMap.isEmpty) {
+      return '';
+    }
+    return '${cookieMap.entries.map((e) => '${e.key}=${e.value}').join('; ')}; ';
+  }
 }
 
 enum VideoDateAdded {
@@ -110,4 +138,20 @@ enum VideoDateAdded {
     '最近3个月': past3Month,
     '最近1年': pastYear,
   });
+
+  String get cookieValue {
+    final cookieMap = <VideoDateAdded, Map<String, String>>{
+          past24H: {'post_date_from': '1'},
+          past2Day: {'post_date_from': '2'},
+          pastWeek: {'post_date_from': '3'},
+          pastMonth: {'post_date_from': '4'},
+          past3Month: {'post_date_from': '5'},
+          pastYear: {'post_date_from': '6'},
+        }[this] ??
+        {};
+    if (cookieMap.isEmpty) {
+      return '';
+    }
+    return '${cookieMap.entries.map((e) => '${e.key}=${e.value}').join('; ')}; ';
+  }
 }

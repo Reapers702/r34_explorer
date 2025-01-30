@@ -6,7 +6,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:r34_video/repo/entity/r34_page.dart';
 import 'package:r34_video/repo/entity/r34_video_info.dart';
-import 'package:r34_video/repo/r34_repo.dart';
+import 'package:r34_video/repo/r34_video_detail_repo.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class DetailPageArg {
@@ -44,13 +44,13 @@ class DetailPage extends StatelessWidget {
     final DetailPageArg pageArg =
         ModalRoute.of(context)?.settings.arguments as DetailPageArg;
     final r34Video = pageArg.r34video;
-    final future = R34Repo.getVideoInfo(r34Video.detailUrl);
+    final future = R34VideoDetailRepo.getVideoInfo(r34Video.detailUrl);
 
     return Scaffold(
       appBar: AppBar(
         title: Text('Video Detail'),
       ),
-      body: FutureBuilder<R34VideoInfo>(
+      body: FutureBuilder<R34VideoInfo?>(
         future: future,
         builder: (context, snapshot) {
           final videoDetail = snapshot.data;
@@ -69,19 +69,25 @@ class DetailPage extends StatelessWidget {
               ),
               Expanded(
                 flex: 2,
-                child: ListView.separated(
-                    itemBuilder: (context, index) {
-                      final resolution = resolutions[index];
-                      return ElevatedButton(
-                        onPressed: () async => openVideo(
-                          videoDetail.downloadUrls[resolution]!,
-                        ),
-                        child: Text(resolution),
-                      );
-                    },
-                    separatorBuilder: (context, index) =>
-                        const SizedBox(height: 10),
-                    itemCount: resolutions.length),
+                child: Container(
+                  padding: EdgeInsets.only(
+                    left: 10,
+                    right: 10,
+                  ),
+                  child: ListView.separated(
+                      itemBuilder: (context, index) {
+                        final resolution = resolutions[index];
+                        return ElevatedButton(
+                          onPressed: () async => openVideo(
+                            videoDetail.downloadUrls[resolution]!,
+                          ),
+                          child: Text(resolution),
+                        );
+                      },
+                      separatorBuilder: (context, index) =>
+                          const SizedBox(height: 10),
+                      itemCount: resolutions.length),
+                ),
               ),
             ],
           );
