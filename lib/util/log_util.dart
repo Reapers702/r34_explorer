@@ -1,14 +1,15 @@
 import 'dart:collection';
+import 'dart:developer';
 
 import 'package:logger/logger.dart';
 
 class LogUtil {
   static const _historyLength = 1000;
   static final _history = DoubleLinkedQueue<String>();
-  static final Logger _logger = Logger(printer: CustomLogPrinter());
+  // static final Logger _logger = Logger(printer: CustomLogPrinter());
 
   static void info(String message) {
-    _logger.i(message);
+    log(message);
     _history.add(message);
     while (_history.length > _historyLength) {
       _history.removeFirst();

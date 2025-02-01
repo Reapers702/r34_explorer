@@ -9,13 +9,25 @@ class IndexPage extends StatefulWidget {
 }
 
 class _IndexPageState extends State<IndexPage> {
+  final PageController _pageController = PageController();
   int _currentIndex = 0;
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   Widget _buildMenuItem(int index) {
     return GestureDetector(
       onTap: () {
         setState(() {
           _currentIndex = index;
+          _pageController.animateToPage(
+            index,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+          );
         });
       },
       child: Column(
@@ -40,8 +52,13 @@ class _IndexPageState extends State<IndexPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: (value) {
+          setState(() {
+            _currentIndex = value;
+          });
+        },
         children: TabConst.pages,
       ),
       bottomNavigationBar: Container(

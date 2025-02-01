@@ -10,7 +10,7 @@ class SingleRadioTextController<T> {
   SingleRadioTextController({required this.currVal, required this.nameMap});
 
   String get currName {
-    return nameMap.entries.firstWhere((e) => e.value == currVal)!.key;
+    return nameMap.entries.firstWhere((e) => e.value == currVal).key;
   }
 }
 
@@ -46,7 +46,7 @@ class _SingleRadioTextState extends State<SingleRadioText> {
     setState(() {
       log('_onSelect $name');
       nameSelect = name;
-      widget.controller?.currVal = widget.values[name];
+      widget.controller.currVal = widget.values[name];
       widget.onSelect?.call(widget.values[name]!);
     });
   }

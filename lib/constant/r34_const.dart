@@ -1,5 +1,5 @@
 class R34Const {
-  static Map<String, String> headers = {
+  static const Map<String, String> headers = {
     'accept': '*/*',
     'accept-language': 'zh-CN,zh;q=0.9',
     'cookie':

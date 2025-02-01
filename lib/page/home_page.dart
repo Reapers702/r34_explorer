@@ -17,7 +17,8 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage>
+    with AutomaticKeepAliveClientMixin {
   final GlobalKey<ScaffoldState> scaffoldKey = GlobalKey<ScaffoldState>();
 
   final PageController _pageController = PageController();
@@ -410,4 +411,7 @@ class _HomePageState extends State<HomePage> {
       },
     );
   }
+
+  @override
+  bool get wantKeepAlive => true;
 }

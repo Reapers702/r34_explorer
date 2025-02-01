@@ -34,9 +34,9 @@ class R34Repo {
     }
 
     final document = parser.parse(res!.body);
-    final listVideo =
+    final videoParentEl =
         document.getElementById('custom_list_videos_most_recent_videos_items');
-    final aThList = listVideo!.querySelectorAll('a.th.js-open-popup');
+    final aThList = videoParentEl!.querySelectorAll('a.th.js-open-popup');
     List<R34Video> data = [];
     for (var aTh in aThList) {
       String title = aTh.attributes['title']!;

@@ -2,17 +2,17 @@ import 'dart:collection';
 
 import 'package:flutter/material.dart';
 import 'package:r34_video/page/home_page.dart';
-import 'package:r34_video/page/user_page.dart';
+import 'package:r34_video/page/my_info_page.dart';
 
 enum TabEnum {
-  homePage(),
-  userPage(),
+  homePage,
+  userPage,
 }
 
 class TabConst {
   static const List<Widget> pages = [
     HomePage(),
-    UserPage(),
+    MyInfoPage(),
   ];
   static LinkedHashMap<TabEnum, MapEntry<String, IconData>> tabs =
       LinkedHashMap.from({

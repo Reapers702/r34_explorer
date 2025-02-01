@@ -148,9 +148,8 @@ class _HomePageBottomSheetState extends State<HomePageBottomSheet>
                           onPressed: () {
                             Navigator.pop(context);
                             widget.onOptionConfirm?.call(
-                              _dateAddedController.currVal ??
-                                  VideoDateAdded.all,
-                              _durationController.currVal ?? VideoDuration.all,
+                              _dateAddedController.currVal,
+                              _durationController.currVal,
                             );
                           },
                           child: Text('确定'),
