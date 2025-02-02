@@ -1,8 +1,10 @@
+import 'package:r34_video/constant/r34_const.dart';
+
 class R34LoginRequest {
   String username;
   String pass;
   String action = 'login';
-  String emailLink = 'https://rule34video.com/email/';
+  String emailLink = 'https://${R34Const.host}/email/';
   String format = 'json';
   String mode = 'async';
 

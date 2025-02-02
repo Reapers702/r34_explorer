@@ -21,7 +21,7 @@ enum _ParseType {
 class R34CommunityRepo {
   static const int _pageSize = 24;
   static final RegExp _ratingInfoReg = RegExp(r'(\d+%)[ ]+\(([\d\w]+)\)');
-  static const String _userPageUrl = 'https://rule34video.com/members/{uid}/';
+  static const String _userPageUrl = 'https://${R34Const.host}/members/{uid}/';
 
   static Future<R34CommunityUser?> getCommunityUser(int userId) async {
     Uri uri = Uri.parse(_userPageUrl.replaceAll('{uid}', userId.toString()));
@@ -37,37 +37,45 @@ class R34CommunityRepo {
       return null;
     }
 
-    final doc = parser.parse(res.body);
-    final nickName =
-        doc.querySelector('div.avatar')?.nextElementSibling?.text.trim() ??
-            'Something Error';
-    final avatarUrl = doc.querySelector('div.avatar img')!.attributes['src'];
-    final subscriberCount = doc
-        .querySelector('div.subscribers_count')!
-        .text
-        .replaceAll('Subscribers', '')
-        .trim();
-    final totalResultSpans = doc.querySelectorAll('span.total_results');
-    final uploadCount =
-        totalResultSpans[0].text.replaceAll(RegExp(r'[()]'), '');
-    final favoriteCount =
-        totalResultSpans[1].text.replaceAll(RegExp(r'[()]'), '');
+    try {
+      final doc = parser.parse(res.body);
+      final nickName =
+          doc.querySelector('div.avatar')?.nextElementSibling?.text.trim() ??
+              'Something Error';
+      final avatarUrl = doc.querySelector('div.avatar img')!.attributes['src'];
+      final subscriberCount = doc
+          .querySelector('div.subscribers_count')!
+          .text
+          .replaceAll('Subscribers', '')
+          .trim();
+      final totalResultSpans = doc.querySelectorAll('span.total_results');
+      final uploadCount =
+          totalResultSpans[0].text.replaceAll(RegExp(r'[()]'), '');
+      final favoriteCount = totalResultSpans
+              .elementAtOrNull(1)
+              ?.text
+              .replaceAll(RegExp(r'[()]'), '') ??
+          '0';
 
-    final communityUser = R34CommunityUser(
-      nickName: nickName,
-      avatarUrl: avatarUrl,
-      subscriberCount: subscriberCount,
-      uploadVideoCount: uploadCount,
-      favoriteVideoCount: favoriteCount,
-    );
-    return communityUser;
+      final communityUser = R34CommunityUser(
+        nickName: nickName,
+        avatarUrl: avatarUrl,
+        subscriberCount: subscriberCount,
+        uploadVideoCount: uploadCount,
+        favoriteVideoCount: favoriteCount,
+      );
+      return communityUser;
+    } catch (e, st) {
+      log('$st');
+      return null;
+    }
   }
 
   static Future<List<R34CommunityVideo>> getUserUploadVideo(
       int userId, int fromIndex) async {
     http.Response? res;
     try {
-      Uri uri = Uri.https('rule34video.com', '/members/$userId/videos/', {
+      Uri uri = Uri.https(R34Const.host, '/members/$userId/videos/', {
         'mode': 'async',
         'function': 'get_block',
         'block_id': 'list_videos_uploaded_videos',
@@ -95,7 +103,7 @@ class R34CommunityRepo {
     http.Response? res;
     try {
       Uri uri =
-          Uri.https('rule34video.com', '/members/$userId/favourites/videos/', {
+          Uri.https(R34Const.host, '/members/$userId/favourites/videos/', {
         'mode': 'async',
         'function': 'get_block',
         'block_id': 'list_videos_favourite_videos',

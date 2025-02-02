@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:developer';
 import 'dart:io';
 
-import 'package:http/io_client.dart';
 import 'package:r34_video/constant/r34_const.dart';
 import 'package:r34_video/repo/entity/r34_login.dart';
 import 'package:http/http.dart' as http;
@@ -15,13 +14,11 @@ class R34UserRepo {
   static final Map<String, String> defaultHeader = Map.of(R34Const.headers)
     ..addAll({'cookie': defaultCookie});
 
-  static const String loginUrl = 'https://rule34video.com/login/';
-
   static Future<R34LoginRes?> login(String username, String password) async {
     http.Response? res;
     try {
       res = await http.post(
-        Uri.parse(loginUrl),
+        Uri.https(R34Const.host, '/login/'),
         headers: defaultHeader,
         body: R34LoginRequest(username: username, pass: password).toJson(),
       );

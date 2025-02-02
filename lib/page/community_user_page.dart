@@ -3,14 +3,21 @@ import 'dart:developer' as dev;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:r34_video/provider/login_user_provider.dart';
 import 'package:r34_video/repo/entity/r34_community_user.dart';
 import 'package:r34_video/repo/entity/r34_community_video.dart';
 import 'package:r34_video/repo/r34_community_repo.dart';
 
-class CommunityUserPage extends StatefulWidget {
+class CommunityUserPageArg {
   final int userId;
+  CommunityUserPageArg({required this.userId});
+}
 
-  const CommunityUserPage({super.key, required this.userId});
+class CommunityUserPage extends StatefulWidget {
+  final int? userId;
+
+  const CommunityUserPage({super.key, this.userId});
 
   @override
   State<CommunityUserPage> createState() => _CommunityUserPageState();
@@ -18,6 +25,7 @@ class CommunityUserPage extends StatefulWidget {
 
 class _CommunityUserPageState extends State<CommunityUserPage>
     with SingleTickerProviderStateMixin {
+  int? _userId;
   late TabController _tabController;
 
   bool _favoriteIsLoading = false;
@@ -29,6 +37,18 @@ class _CommunityUserPageState extends State<CommunityUserPage>
   final _favoriteScrollController = ScrollController();
   final _uploadScrollController = ScrollController();
 
+  int _getUid(BuildContext context) {
+    if (_userId == null) {
+      if (widget.userId != null) {
+        _userId = widget.userId!;
+      }
+      final CommunityUserPageArg pageArg =
+          ModalRoute.of(context)?.settings.arguments as CommunityUserPageArg;
+      return _userId = pageArg.userId;
+    }
+    return _userId!;
+  }
+
   Future<void> _loadData({int? index}) async {
     final pageViewIndex = index ?? _tabController.index;
     if (pageViewIndex == 0) {
@@ -36,7 +56,7 @@ class _CommunityUserPageState extends State<CommunityUserPage>
         _uploadIsLoading = true;
       });
       List<R34CommunityVideo> data = await R34CommunityRepo.getUserUploadVideo(
-          widget.userId, _uploadVideoList.length);
+          _getUid(context), _uploadVideoList.length);
       if (data.isNotEmpty) {
         setState(() {
           _uploadVideoList.addAll(data);
@@ -49,7 +69,7 @@ class _CommunityUserPageState extends State<CommunityUserPage>
       });
       List<R34CommunityVideo> data =
           await R34CommunityRepo.getUserFavoriteVideo(
-              widget.userId, _favoriteVideoList.length);
+              _getUid(context), _favoriteVideoList.length);
       if (data.isNotEmpty) {
         setState(() {
           _favoriteVideoList.addAll(data);
@@ -86,8 +106,10 @@ class _CommunityUserPageState extends State<CommunityUserPage>
       }
     });
 
-    _loadData(index: 0);
-    _loadData(index: 1);
+    Future.microtask(() {
+      _loadData(index: 0);
+      _loadData(index: 1);
+    });
   }
 
   @override
@@ -98,71 +120,73 @@ class _CommunityUserPageState extends State<CommunityUserPage>
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<R34CommunityUser?>(
-      future: R34CommunityRepo.getCommunityUser(widget.userId),
-      builder: (context, snapshot) {
-        final communityUser = snapshot.data;
-        dev.log('communityUser: ${jsonEncode(communityUser)}');
-        return CustomScrollView(
-          slivers: [
-            // 可浮动且吸顶的 Container
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _FloatingContainerDelegate(communityUser),
-            ),
-            // 吸顶的 TabBar
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _TabBarDelegate(
-                tabController: _tabController,
-                communityUser: communityUser,
+    return Scaffold(
+      body: FutureBuilder<R34CommunityUser?>(
+        future: R34CommunityRepo.getCommunityUser(_getUid(context)),
+        builder: (context, snapshot) {
+          final communityUser = snapshot.data;
+          dev.log('communityUser: ${jsonEncode(communityUser)}');
+          return CustomScrollView(
+            slivers: [
+              // 可浮动且吸顶的 Container
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _FloatingContainerDelegate(communityUser),
               ),
-            ),
-            // TabBarView
-            SliverFillRemaining(
-              child: TabBarView(
-                controller: _tabController,
-                children: [
-                  ListView.separated(
-                    controller: _uploadScrollController,
-                    itemCount:
-                        _uploadVideoList.length + (_uploadIsLoading ? 1 : 0),
-                    separatorBuilder: (context, index) =>
-                        const Divider(indent: 10),
-                    itemBuilder: (context, index) {
-                      if (index < _uploadVideoList.length) {
-                        final video = _uploadVideoList[index];
-                        return _buildVideoWidget(video);
-                      } else {
-                        return const Center(
-                          child: CircularProgressIndicator(),
-                        );
-                      }
-                    },
-                  ),
-                  ListView.separated(
-                    controller: _favoriteScrollController,
-                    itemCount: _favoriteVideoList.length +
-                        (_favoriteIsLoading ? 1 : 0),
-                    separatorBuilder: (context, index) =>
-                        const Divider(indent: 10),
-                    itemBuilder: (context, index) {
-                      if (index < _favoriteVideoList.length) {
-                        final video = _favoriteVideoList[index];
-                        return _buildVideoWidget(video);
-                      } else {
-                        return const Center(
-                          child: CircularProgressIndicator(),
-                        );
-                      }
-                    },
-                  ),
-                ],
+              // 吸顶的 TabBar
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _TabBarDelegate(
+                  tabController: _tabController,
+                  communityUser: communityUser,
+                ),
               ),
-            ),
-          ],
-        );
-      },
+              // TabBarView
+              SliverFillRemaining(
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    ListView.separated(
+                      controller: _uploadScrollController,
+                      itemCount:
+                          _uploadVideoList.length + (_uploadIsLoading ? 1 : 0),
+                      separatorBuilder: (context, index) =>
+                          const Divider(indent: 10),
+                      itemBuilder: (context, index) {
+                        if (index < _uploadVideoList.length) {
+                          final video = _uploadVideoList[index];
+                          return _buildVideoWidget(video);
+                        } else {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                      },
+                    ),
+                    ListView.separated(
+                      controller: _favoriteScrollController,
+                      itemCount: _favoriteVideoList.length +
+                          (_favoriteIsLoading ? 1 : 0),
+                      separatorBuilder: (context, index) =>
+                          const Divider(indent: 10),
+                      itemBuilder: (context, index) {
+                        if (index < _favoriteVideoList.length) {
+                          final video = _favoriteVideoList[index];
+                          return _buildVideoWidget(video);
+                        } else {
+                          return const Center(
+                            child: CircularProgressIndicator(),
+                          );
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 

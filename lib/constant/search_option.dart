@@ -1,20 +1,20 @@
 import 'dart:collection';
 
-class R34SearchOption {
+class R34HomeFilterOption {
   HomeSortEnum sortType;
   VideoDuration duration;
   VideoDateAdded dateAdded;
 
   int page;
 
-  R34SearchOption({
+  R34HomeFilterOption({
     this.sortType = HomeSortEnum.mostViewed,
     this.duration = VideoDuration.all,
     this.dateAdded = VideoDateAdded.all,
     this.page = 1,
   });
 
-  bool equals(R34SearchOption? other) {
+  bool equals(R34HomeFilterOption? other) {
     if (other == null) {
       return false;
     }
@@ -24,7 +24,7 @@ class R34SearchOption {
         page == other.page;
   }
 
-  bool filterEquals(R34SearchOption? other) {
+  bool filterEquals(R34HomeFilterOption? other) {
     if (other == null) {
       return false;
     }
@@ -33,8 +33,8 @@ class R34SearchOption {
         dateAdded == other.dateAdded;
   }
 
-  R34SearchOption duplicate() {
-    return R34SearchOption(
+  R34HomeFilterOption duplicate() {
+    return R34HomeFilterOption(
       sortType: sortType,
       duration: duration,
       dateAdded: dateAdded,
@@ -57,6 +57,7 @@ enum HomeSortEnum {
   mostViewed,
   topRated,
   longest,
+  mostRelevant,
   ;
 
   static final descriptionMap = LinkedHashMap.of({
@@ -66,12 +67,16 @@ enum HomeSortEnum {
     '时长最久': longest,
   });
 
+  static final descriptionMapWithSearch = LinkedHashMap.of(descriptionMap)
+    ..addAll({'最符合的': mostRelevant});
+
   String get officialTag {
     return {
       newest: 'post_date',
       mostViewed: 'video_viewed',
       topRated: 'rating',
       longest: 'duration',
+      mostRelevant: '',
     }[this]!;
   }
 }

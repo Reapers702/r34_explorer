@@ -7,7 +7,7 @@ import 'package:r34_video/page/component/home_page_bottom_sheet.dart';
 import 'package:r34_video/page/component/underlined_text.dart';
 import 'package:r34_video/page/component/video_thumb.dart';
 import 'package:r34_video/repo/entity/r34_page.dart';
-import 'package:r34_video/repo/r34_search_repo.dart';
+import 'package:r34_video/repo/r34_home_page_repo.dart';
 import 'package:r34_video/util/toast_util.dart';
 
 class HomePage extends StatefulWidget {
@@ -25,8 +25,8 @@ class _HomePageState extends State<HomePage>
   PersistentBottomSheetController? _bottomSheetController;
   final ScrollController _scrollController = ScrollController();
 
-  R34SearchOption currSearchOption = R34SearchOption();
-  R34SearchOption? lastSearchOption;
+  R34HomeFilterOption currSearchOption = R34HomeFilterOption();
+  R34HomeFilterOption? lastSearchOption;
 
   R34Page _r34page = R34Page(videos: [], pageCount: 0);
   Map<int, List<R34Video>> _r34VideoPageMap = {};
@@ -94,7 +94,7 @@ class _HomePageState extends State<HomePage>
 
       lastSearchOption = currSearchOption.duplicate();
       log(currSearchOption.toString());
-      _r34page = await R34Repo.getPage(currSearchOption);
+      _r34page = await R34HomePageRepo.getPage(currSearchOption);
 
       _loading = false;
       _r34VideoPageMap[currSearchOption.page] = _r34page.videos;
@@ -191,6 +191,7 @@ class _HomePageState extends State<HomePage>
 
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final contextPadding = MediaQuery.of(context).viewPadding;
 
     return Scaffold(

@@ -6,7 +6,7 @@ import 'package:r34_video/constant/search_option.dart';
 // 目前使用 HomePageBottomSheet 替代
 
 class PageSearchBottomSheet extends StatefulWidget {
-  final Function(R34SearchOption) onSearch;
+  final Function(R34HomeFilterOption) onSearch;
   const PageSearchBottomSheet({super.key, required this.onSearch});
 
   @override
@@ -103,7 +103,7 @@ class _PageSearchBottomSheetState extends State<PageSearchBottomSheet>
                   children: [
                     ElevatedButton(
                         onPressed: () {
-                          widget.onSearch(R34SearchOption());
+                          widget.onSearch(R34HomeFilterOption());
                         },
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue, // 按钮背景颜色

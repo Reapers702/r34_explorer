@@ -4,9 +4,14 @@ class R34Page {
 
   R34Page({required this.videos, required this.pageCount});
 
+  factory R34Page.empty() {
+    return R34Page(videos: [], pageCount: 1);
+  }
+
   Map<String, dynamic> toJson() {
     return {
       'videos': videos.map((e) => e.toJson()).toList(),
+      'pageCount': pageCount,
     };
   }
 }
