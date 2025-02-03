@@ -4,6 +4,7 @@ import 'dart:developer' as dev;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:r34_video/page/component/community_video_block.dart';
 import 'package:r34_video/provider/login_user_provider.dart';
 import 'package:r34_video/repo/entity/r34_community_user.dart';
 import 'package:r34_video/repo/entity/r34_community_video.dart';
@@ -41,10 +42,11 @@ class _CommunityUserPageState extends State<CommunityUserPage>
     if (_userId == null) {
       if (widget.userId != null) {
         _userId = widget.userId!;
+      } else {
+        final CommunityUserPageArg pageArg =
+            ModalRoute.of(context)?.settings.arguments as CommunityUserPageArg;
+        _userId = pageArg.userId;
       }
-      final CommunityUserPageArg pageArg =
-          ModalRoute.of(context)?.settings.arguments as CommunityUserPageArg;
-      return _userId = pageArg.userId;
     }
     return _userId!;
   }
@@ -155,7 +157,7 @@ class _CommunityUserPageState extends State<CommunityUserPage>
                       itemBuilder: (context, index) {
                         if (index < _uploadVideoList.length) {
                           final video = _uploadVideoList[index];
-                          return _buildVideoWidget(video);
+                          return CommunityVideoBlock(video: video);
                         } else {
                           return const Center(
                             child: CircularProgressIndicator(),
@@ -172,7 +174,8 @@ class _CommunityUserPageState extends State<CommunityUserPage>
                       itemBuilder: (context, index) {
                         if (index < _favoriteVideoList.length) {
                           final video = _favoriteVideoList[index];
-                          return _buildVideoWidget(video);
+                          return CommunityVideoBlock(video: video);
+                          ;
                         } else {
                           return const Center(
                             child: CircularProgressIndicator(),
@@ -186,66 +189,6 @@ class _CommunityUserPageState extends State<CommunityUserPage>
             ],
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildVideoWidget(R34CommunityVideo video) {
-    return Container(
-      height: 90,
-      margin: const EdgeInsets.only(left: 10),
-      child: Row(
-        children: [
-          CachedNetworkImage(
-            imageUrl: video.thumbImageUrl,
-            width: 160,
-            height: 90,
-          ),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: MediaQuery.of(context).size.width - 200,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: 2),
-                Text(
-                  video.title,
-                  maxLines: 2,
-                ),
-                const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  direction: Axis.horizontal,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.upload_outlined),
-                        Text(video.uploadTime),
-                      ],
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.play_arrow_outlined,
-                        ),
-                        Text(video.viewCount),
-                      ],
-                    ),
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.rate_review_outlined),
-                        Text('${video.rating} (${video.ratingCount})'),
-                      ],
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          )
-        ],
       ),
     );
   }

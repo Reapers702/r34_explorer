@@ -33,7 +33,7 @@ class HttpTraceUtil {
     LogUtil.info(errorMessage);
   }
 
-  static void handleConnectionError(dynamic error) {
+  static void handleConnectionError(dynamic error, {dynamic st}) {
     String errorMessage;
     if (error is SocketException) {
       errorMessage =
@@ -41,6 +41,7 @@ class HttpTraceUtil {
     } else {
       errorMessage = 'Unexpected Error: ${error.toString()}';
     }
+    errorMessage += st?.toString() ?? '';
     ToastUtil.showToast(errorMessage);
     LogUtil.info(errorMessage);
   }

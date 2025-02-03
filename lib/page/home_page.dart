@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:r34_video/constant/page_routes.dart';
 import 'package:r34_video/constant/search_option.dart';
 import 'package:r34_video/page/component/home_page_bottom_sheet.dart';
 import 'package:r34_video/page/component/underlined_text.dart';
@@ -131,7 +132,7 @@ class _HomePageState extends State<HomePage>
 
   void _showPageSwitcher() {
     showDialog(
-      barrierDismissible: false,
+      barrierDismissible: true,
       context: context,
       builder: (context) {
         TextEditingController textController = TextEditingController();
@@ -145,7 +146,7 @@ class _HomePageState extends State<HomePage>
                 controller: textController,
                 keyboardType: TextInputType.number, // 限制输入为数字
                 decoration: InputDecoration(
-                  hintText: '0 - $_pageCount',
+                  hintText: '1 - $_pageCount',
                   border: OutlineInputBorder(),
                 ),
               ),
@@ -244,7 +245,8 @@ class _HomePageState extends State<HomePage>
                                     child: GestureDetector(
                                       onTap: () {
                                         log('come to search something');
-                                        ToastUtil.showToast('这里还没做完噢');
+                                        Navigator.of(context).pushNamed(
+                                            PageRoutes.searchEditPage);
                                       },
                                       child: Container(
                                         padding: EdgeInsets.symmetric(

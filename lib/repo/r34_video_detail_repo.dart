@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:developer';
 
 import 'package:r34_video/constant/r34_const.dart';
@@ -6,7 +5,7 @@ import 'package:r34_video/repo/entity/r34_video_info.dart';
 import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as parser;
 import 'package:r34_video/util/http_trace_util.dart';
-import 'package:r34_video/util/toast_util.dart';
+import 'package:r34_video/util/r34_video_list_parser.dart';
 
 class R34VideoDetailRepo {
   static Future<R34VideoInfo?> getVideoInfo(String detailUrl) async {
@@ -61,13 +60,13 @@ class R34VideoDetailRepo {
 
         // 上传者数据
         if (labelDiv.text == 'Uploaded by') {
-          final imgEl = parent.getElementsByTagName('img')[0];
+          final imgEl = parent.getElementsByTagName('img').elementAtOrNull(0);
           final btnEl = parent.querySelector('a.item.btn_link')!;
           final id = btnEl.attributes['href']!
               .split('/')
               .lastWhere((e) => e.isNotEmpty);
           uploaderInfo = VideoUploaderInfo(
-              id, imgEl.attributes['alt']!, imgEl.attributes['src']!);
+              id, btnEl.text.trim(), imgEl?.attributes['src']);
         }
 
         // 类别数据
@@ -108,6 +107,10 @@ class R34VideoDetailRepo {
           : jsonProp;
       Map<String, String> jsonInfo = parseMap(jsonProp);
 
+      // 解析相关视频数据
+      final relatedVideos =
+          R34VideoListParser.parseDocToRelatedVideo(doc: document);
+
       R34VideoInfo videoInfo = R34VideoInfo(
         title: titleEle.text,
         downloadUrls: downloadUrls,
@@ -116,12 +119,13 @@ class R34VideoDetailRepo {
         uploaderInfo: uploaderInfo,
         categories: categories,
         tags: tags,
+        relatedVideos: relatedVideos,
       );
       // log('getVideoInfo: ${jsonEncode(videoInfo.toJson())}');
       return videoInfo;
     } catch (e, st) {
       HttpTraceUtil.handleConnectionError(e);
-      log('$st');
+      log('r34 video detail repo error: $detailUrl $st');
       return null;
     }
   }

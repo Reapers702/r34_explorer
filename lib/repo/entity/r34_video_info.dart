@@ -1,4 +1,6 @@
 import 'package:r34_video/constant/r34_const.dart';
+import 'package:r34_video/repo/entity/r34_community_video.dart';
+import 'package:r34_video/repo/entity/r34_page.dart';
 
 class R34VideoInfo {
   String title;
@@ -10,6 +12,8 @@ class R34VideoInfo {
   List<VideoCategory> categories;
   List<VideoTag> tags;
 
+  List<R34CommunityVideo> relatedVideos;
+
   R34VideoInfo({
     required this.title,
     required this.thumbImageUrl,
@@ -18,6 +22,7 @@ class R34VideoInfo {
     this.artistInfos = const [],
     this.categories = const [],
     this.tags = const [],
+    this.relatedVideos = const [],
   });
 
   Map<String, dynamic> toJson() {
@@ -36,7 +41,7 @@ class R34VideoInfo {
 class VideoCategory {
   String name;
   String desc;
-  String? imgUrl;
+  String imgUrl;
   VideoCategory(this.name, this.desc, imgUrl)
       : imgUrl = imgUrl ?? R34Const.websiteIcon;
 
@@ -61,7 +66,7 @@ class VideoTag {
 class VideoArtistInfo {
   String name;
   String desc;
-  String? avatarUrl;
+  String avatarUrl;
   VideoArtistInfo(this.name, this.desc, avatarUrl)
       : avatarUrl = avatarUrl ?? R34Const.websiteIcon;
 
@@ -76,7 +81,9 @@ class VideoUploaderInfo {
   int id;
   String name;
   String avatarUrl;
-  VideoUploaderInfo(String id, this.name, this.avatarUrl) : id = int.parse(id);
+  VideoUploaderInfo(String id, this.name, avatarUrl)
+      : id = int.parse(id),
+        avatarUrl = avatarUrl ?? R34Const.websiteIcon;
 
   Map<String, dynamic> toJson() => {
         'id': id,
