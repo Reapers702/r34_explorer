@@ -1,5 +1,6 @@
 import 'dart:developer';
 
+import 'package:html/dom.dart';
 import 'package:r34_video/constant/r34_const.dart';
 import 'package:r34_video/repo/entity/r34_community_user.dart';
 import 'package:http/http.dart' as http;
@@ -31,20 +32,28 @@ class R34CommunityRepo {
       final nickName =
           doc.querySelector('div.avatar')?.nextElementSibling?.text.trim() ??
               'Something Error';
-      final avatarUrl = doc.querySelector('div.avatar img')!.attributes['src'];
+      final avatarUrl = doc.querySelector('div.avatar img')?.attributes['src'];
       final subscriberCount = doc
           .querySelector('div.subscribers_count')!
           .text
           .replaceAll('Subscribers', '')
           .trim();
-      final totalResultSpans = doc.querySelectorAll('span.total_results');
-      final uploadCount =
-          totalResultSpans[0].text.replaceAll(RegExp(r'[()]'), '');
-      final favoriteCount = totalResultSpans
-              .elementAtOrNull(1)
-              ?.text
-              .replaceAll(RegExp(r'[()]'), '') ??
-          '0';
+
+      final videoStatisticsTitles = doc
+          .getElementsByClassName('content_general')[0]
+          .querySelectorAll('h2.title');
+      final uploadCount = videoStatisticsTitles
+          .where((e) => e.text.contains('\'s Videos'))
+          .firstOrNull
+          ?.querySelector('span.total_results')
+          ?.text
+          .replaceAll(RegExp(r'[()]'), '');
+      final favoriteCount = videoStatisticsTitles
+          .where((e) => e.text.contains('\'s Favorites'))
+          .firstOrNull
+          ?.querySelector('span.total_results')
+          ?.text
+          .replaceAll(RegExp(r'[()]'), '');
 
       final communityUser = R34CommunityUser(
         nickName: nickName,

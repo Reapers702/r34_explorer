@@ -17,8 +17,9 @@ class CommunityUserPageArg {
 
 class CommunityUserPage extends StatefulWidget {
   final int? userId;
+  final bool userSelf;
 
-  const CommunityUserPage({super.key, this.userId});
+  const CommunityUserPage({super.key, this.userId, this.userSelf = false});
 
   @override
   State<CommunityUserPage> createState() => _CommunityUserPageState();
@@ -28,6 +29,7 @@ class _CommunityUserPageState extends State<CommunityUserPage>
     with SingleTickerProviderStateMixin {
   int? _userId;
   late TabController _tabController;
+  Future<R34CommunityUser?>? _communityUserFuture;
 
   bool _favoriteIsLoading = false;
   bool _uploadIsLoading = false;
@@ -57,11 +59,15 @@ class _CommunityUserPageState extends State<CommunityUserPage>
       setState(() {
         _uploadIsLoading = true;
       });
-      List<R34CommunityVideo> data = await R34CommunityRepo.getUserUploadVideo(
-          _getUid(context), _uploadVideoList.length);
-      if (data.isNotEmpty) {
-        setState(() {
+      try {
+        List<R34CommunityVideo> data =
+            await R34CommunityRepo.getUserUploadVideo(
+                _getUid(context), _uploadVideoList.length);
+        if (data.isNotEmpty) {
           _uploadVideoList.addAll(data);
+        }
+      } finally {
+        setState(() {
           _uploadIsLoading = false;
         });
       }
@@ -69,12 +75,15 @@ class _CommunityUserPageState extends State<CommunityUserPage>
       setState(() {
         _favoriteIsLoading = true;
       });
-      List<R34CommunityVideo> data =
-          await R34CommunityRepo.getUserFavoriteVideo(
-              _getUid(context), _favoriteVideoList.length);
-      if (data.isNotEmpty) {
-        setState(() {
+      try {
+        List<R34CommunityVideo> data =
+            await R34CommunityRepo.getUserFavoriteVideo(
+                _getUid(context), _favoriteVideoList.length);
+        if (data.isNotEmpty) {
           _favoriteVideoList.addAll(data);
+        }
+      } finally {
+        setState(() {
           _favoriteIsLoading = false;
         });
       }
@@ -92,8 +101,7 @@ class _CommunityUserPageState extends State<CommunityUserPage>
       if (_favoriteScrollController.position.pixels ==
               _favoriteScrollController.position.maxScrollExtent &&
           !_favoriteIsLoading) {
-        _favoriteIsLoading = true;
-        _loadData();
+        _loadData(index: 1);
       }
     });
 
@@ -103,8 +111,7 @@ class _CommunityUserPageState extends State<CommunityUserPage>
       if (_uploadScrollController.position.pixels ==
               _uploadScrollController.position.maxScrollExtent &&
           !_uploadIsLoading) {
-        _uploadIsLoading = true;
-        _loadData();
+        _loadData(index: 0);
       }
     });
 
@@ -122,9 +129,12 @@ class _CommunityUserPageState extends State<CommunityUserPage>
 
   @override
   Widget build(BuildContext context) {
+    _communityUserFuture ??=
+        R34CommunityRepo.getCommunityUser(_getUid(context));
+
     return Scaffold(
       body: FutureBuilder<R34CommunityUser?>(
-        future: R34CommunityRepo.getCommunityUser(_getUid(context)),
+        future: _communityUserFuture,
         builder: (context, snapshot) {
           final communityUser = snapshot.data;
           dev.log('communityUser: ${jsonEncode(communityUser)}');
@@ -258,6 +268,18 @@ class _FloatingContainerDelegate extends SliverPersistentHeaderDelegate {
             color: Colors.grey,
             child: Stack(
               children: [
+                Positioned(
+                  right: 10,
+                  top: 0,
+                  child: IconButton(
+                    onPressed: () async {
+                      dev.log('log out');
+                      final userProvider = context.read<LoginUserProvider>();
+                      userProvider.logout();
+                    },
+                    icon: const Icon(Icons.logout_outlined),
+                  ),
+                ),
                 Positioned(
                   left: avatarLeft,
                   top: avatarTop,

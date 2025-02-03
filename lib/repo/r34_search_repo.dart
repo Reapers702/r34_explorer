@@ -179,12 +179,14 @@ class R34SearchRepo {
       }
 
       int pageCount = 1;
-      final pageBtns = doc.getElementById(pageBundleIdMap[keywordType]!)!;
-      for (var pageBtn in pageBtns.getElementsByTagName('a')) {
+      final pageBtns = doc.getElementById(pageBundleIdMap[keywordType]!);
+      for (var pageBtn in pageBtns?.getElementsByTagName('a') ?? []) {
         if (pageBtn.text.trim() == 'Last') {
           final href = pageBtn.attributes['data-parameters']!;
           pageCount = int.parse(href.split(':').last);
           break;
+        } else {
+          pageCount = int.tryParse(pageBtn.text.trim()) ?? pageCount;
         }
       }
 

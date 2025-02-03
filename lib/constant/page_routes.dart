@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:r34_video/page/community_user_page.dart';
-import 'package:r34_video/page/component/search_edit_page.dart';
+import 'package:r34_video/page/search_edit_page.dart';
 import 'package:r34_video/page/detail_page.dart';
 import 'package:r34_video/page/index_page.dart';
 import 'package:r34_video/page/login_page.dart';

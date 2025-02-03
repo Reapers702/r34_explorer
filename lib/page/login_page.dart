@@ -1,6 +1,9 @@
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart';
+import 'package:provider/provider.dart';
+import 'package:r34_video/provider/login_user_provider.dart';
 import 'package:r34_video/repo/local_repo.dart';
 import 'package:r34_video/repo/r34_user_repo.dart';
 
@@ -34,8 +37,14 @@ class _LoginPageState extends State<LoginPage> {
       });
     }
 
-    if (await LocalUserRepo.isLogin() && mounted) {
-      Navigator.of(context).pop();
+    if (context.mounted) {
+      final isLogin = await LocalUserRepo.isLogin();
+      final userId = await LocalUserRepo.getUserId();
+      if (isLogin) {
+        final loginUserProvider = context.read<LoginUserProvider>();
+        loginUserProvider.setUserId(userId);
+        Navigator.of(context).pop();
+      }
     }
   }
 

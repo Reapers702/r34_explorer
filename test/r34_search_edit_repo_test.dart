@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:developer';
 
-import 'package:r34_video/page/component/search_edit_page.dart';
+import 'package:r34_video/page/search_edit_page.dart';
 import 'package:r34_video/repo/r34_search_edit_repo.dart';
 
 void main() async {

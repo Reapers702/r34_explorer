@@ -64,6 +64,7 @@ class SearchEditProvider with ChangeNotifier {
   void addSearchHistory(String searchText) async {
     try {
       await R34SearchEditRepo.addSearchHistory(searchText);
+      _history = await R34SearchEditRepo.getSearchHistory();
     } finally {
       notifyListeners();
     }
@@ -72,6 +73,7 @@ class SearchEditProvider with ChangeNotifier {
   void removeSearchHistory(String searchText) async {
     try {
       await R34SearchEditRepo.removeSearchHistory(searchText);
+      _history = await R34SearchEditRepo.getSearchHistory();
     } finally {
       notifyListeners();
     }

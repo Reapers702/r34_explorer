@@ -67,8 +67,8 @@ enum HomeSortEnum {
     '时长最久': longest,
   });
 
-  static final descriptionMapWithSearch = LinkedHashMap.of(descriptionMap)
-    ..addAll({'最符合的': mostRelevant});
+  static final descriptionMapWithSearch =
+      LinkedHashMap.of({'最符合的': mostRelevant})..addAll(descriptionMap);
 
   String get officialTag {
     return {

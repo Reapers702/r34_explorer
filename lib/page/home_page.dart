@@ -167,7 +167,7 @@ class _HomePageState extends State<HomePage>
                     newPageNum > 0 &&
                     newPageNum <= _pageCount) {
                   Navigator.of(context).pop();
-                  _pageController.jumpToPage(newPageNum.toInt());
+                  _pageController.jumpToPage(newPageNum.toInt() - 1);
                 } else {
                   ToastUtil.showToast('请输入有效页码');
                 }

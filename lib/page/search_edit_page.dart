@@ -2,9 +2,11 @@ import 'dart:developer';
 
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:r34_video/constant/page_routes.dart';
 import 'package:r34_video/page/component/video_tag_chip.dart';
+import 'package:r34_video/page/search_result_page.dart';
 import 'package:r34_video/provider/search_edit_provider.dart';
-import 'package:r34_video/repo/entity/r34_video_info.dart';
+import 'package:r34_video/util/toast_util.dart';
 
 class SearchEditPage extends StatefulWidget {
   const SearchEditPage({super.key});
@@ -14,29 +16,22 @@ class SearchEditPage extends StatefulWidget {
 }
 
 class _SearchEditPageState extends State<SearchEditPage> {
-  final TextEditingController _searchController =
-      TextEditingController(text: 'hello');
+  final TextEditingController _searchController = TextEditingController();
 
-  List<String> _bilibiliHotSearch = [
-    "圆脸谈外网疯传假…",
-    "大鱼海棠2预告",
-    "樊振东获世界杯参…",
-    "学生一张嘴出卖了…",
-    "东契奇因加盟湖人…",
-    "婚礼变葬礼美女扮…",
-    "哪吒2鹿童配音回应被…",
-    "SM新女团首个出…",
-    "英伟达市值1周缩水超…",
-    "Kanye唯一关注Taylor…"
-  ];
+  void _submitSearch(SearchEditProvider provider) {
+    final searchText = _searchController.text;
+    if (searchText.isEmpty) {
+      ToastUtil.showToast('请输入合法内容');
+    }
 
-  List<String> _searchHistory = [
-    "游戏王YGO",
-    "游戏王YGOPRO",
-    "灰流丽",
-    "咱们单位原来有…",
-    "我记着咱们公司…"
-  ];
+    log('search text: $searchText');
+    Navigator.of(context).pushNamed(
+      PageRoutes.searchResultPage,
+      arguments: SearchResultPageArg(searchText),
+    );
+
+    provider.addSearchHistory(searchText);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,15 +65,22 @@ class _SearchEditPageState extends State<SearchEditPage> {
                         EdgeInsets.only(left: 0, right: 10, bottom: 12.5),
                   ),
                   onSubmitted: (value) {
-                    log('text field submit $value');
+                    _submitSearch(editProvider);
                   },
                 ),
               ),
             ),
-            const SizedBox(width: 16),
-            const Text(
-              "搜索",
-              style: TextStyle(color: Colors.red),
+            const SizedBox(width: 12),
+            Container(
+              width: 40,
+              alignment: Alignment.center,
+              child: GestureDetector(
+                onTap: () => _submitSearch(editProvider),
+                child: Text(
+                  "搜索",
+                  style: TextStyle(color: Colors.red, fontSize: 18),
+                ),
+              ),
             ),
             const SizedBox(width: 12),
           ],
@@ -102,7 +104,12 @@ class _SearchEditPageState extends State<SearchEditPage> {
                 runSpacing: 4,
                 children: editProvider
                     .getSearchHistory()
-                    .map((e) => VideoSearchHistoryChip(e))
+                    .map((e) => VideoSearchHistoryChip(
+                          e,
+                          onDelete: () {
+                            editProvider.removeSearchHistory(e);
+                          },
+                        ))
                     .toList(),
               ),
             ),

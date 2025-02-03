@@ -25,7 +25,7 @@ class VideoSearchHistoryChip extends StatelessWidget {
         log('on tap $val');
         Navigator.of(context).pushNamed(
           PageRoutes.searchResultPage,
-          arguments: SearchResultPageArg(searchText: val),
+          arguments: SearchResultPageArg(val),
         );
       },
       child: Chip(
@@ -58,7 +58,7 @@ class VideoTagChip extends StatelessWidget {
       onTap: () {
         Navigator.of(context).pushNamed(
           PageRoutes.searchResultPage,
-          arguments: SearchResultPageArg(searchText: 't:${tag.id}'),
+          arguments: SearchResultPageArg('t:${tag.id}'),
         );
       },
       child: Chip(
@@ -88,7 +88,7 @@ class VideoCategoryChip extends StatelessWidget {
       onTap: () {
         Navigator.of(context).pushNamed(
           PageRoutes.searchResultPage,
-          arguments: SearchResultPageArg(searchText: 'c:${category.name}'),
+          arguments: SearchResultPageArg('c:${category.name}'),
         );
       },
       child: Chip(
@@ -135,7 +135,7 @@ class VideoArtistChip extends StatelessWidget {
       onTap: () {
         Navigator.of(context).pushNamed(
           PageRoutes.searchResultPage,
-          arguments: SearchResultPageArg(searchText: 'a:${artist.name}'),
+          arguments: SearchResultPageArg('a:${artist.name}'),
         );
       },
       child: Chip(

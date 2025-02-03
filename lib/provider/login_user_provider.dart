@@ -11,14 +11,18 @@ class LoginUserProvider with ChangeNotifier {
         .then((userId) => setUserId(userId));
   }
 
-  String? get userId {
-    if (_userId != null) {
-      return userId;
-    }
+  int? get userId {
+    return _userId;
   }
 
   void setUserId(int? userId) {
     _userId = userId;
+    notifyListeners();
+  }
+
+  Future<void> logout() async {
+    await LocalUserRepo.logout();
+    _userId = null;
     notifyListeners();
   }
 }

@@ -9,6 +9,8 @@ import 'package:http/http.dart' as http;
 import 'package:html/parser.dart' as parser;
 
 class R34SearchEditRepo {
+  static const int _maxHistoryCount = 5;
+
   static Future<List<String>> getSearchHistory() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getStringList('searchHistory') ?? [];
@@ -17,7 +19,11 @@ class R34SearchEditRepo {
   static Future<bool> addSearchHistory(String searchText) async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     List<String> searchHistory = prefs.getStringList('searchHistory') ?? [];
-    searchHistory.add(searchText);
+    searchHistory.remove(searchText);
+    searchHistory.insert(0, searchText);
+    if (searchHistory.length > _maxHistoryCount) {
+      searchHistory.removeLast();
+    }
     return prefs.setStringList('searchHistory', searchHistory);
   }
 
