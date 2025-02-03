@@ -1,4 +1,4 @@
-package com.example.r34_video
+package top.reapers.r34explorer
 
 import io.flutter.embedding.android.FlutterActivity
 
