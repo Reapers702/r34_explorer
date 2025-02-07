@@ -113,10 +113,10 @@ class _DetailPageState extends State<DetailPage> {
 
           return Column(
             children: [
-              Container(
+              SizedBox(
                 height: 240,
                 child: GestureDetector(
-                  onTap: () => _showPlayDialog(videoDetail.downloadUrls),
+                  onTap: () => _showPlayDialog(videoDetail.playUrls),
                   child: Stack(
                     alignment: Alignment.topCenter,
                     children: [

@@ -6,6 +6,7 @@ class R34VideoInfo {
   String title;
   String? thumbImageUrl;
   Map<String, String> downloadUrls;
+  Map<String, String> playUrls;
 
   VideoUploaderInfo uploaderInfo;
   List<VideoArtistInfo> artistInfos;
@@ -18,6 +19,7 @@ class R34VideoInfo {
     required this.title,
     required this.thumbImageUrl,
     required this.downloadUrls,
+    required this.playUrls,
     required this.uploaderInfo,
     this.artistInfos = const [],
     this.categories = const [],
@@ -30,6 +32,7 @@ class R34VideoInfo {
       'title': title,
       'thumbImageUrl': thumbImageUrl,
       'downloadUrls': downloadUrls,
+      'playUrls': playUrls,
       'uploaderInfo': uploaderInfo.toJson(),
       'artistInfos': artistInfos.map((e) => e.toJson()).toList(),
       'categories': categories.map((e) => e.toJson()).toList(),

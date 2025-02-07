@@ -8,6 +8,8 @@ import 'package:r34_video/util/http_trace_util.dart';
 import 'package:r34_video/util/r34_video_list_parser.dart';
 
 class R34VideoDetailRepo {
+  static final RegExp _videoAltUrlResolutionReg = RegExp(r'\d+_(\d+)p');
+
   static Future<R34VideoInfo?> getVideoInfo(String detailUrl) async {
     http.Response? res;
     try {
@@ -107,6 +109,28 @@ class R34VideoDetailRepo {
           : jsonProp;
       Map<String, String> jsonInfo = parseMap(jsonProp);
 
+      // 解析 Web 播放链接
+      final playUrls = <String, String>{};
+      for (var entry in jsonInfo.entries) {
+        if (entry.key.startsWith('video_alt_url') &&
+            entry.value.startsWith('function/0/')) {
+          final match = _videoAltUrlResolutionReg.firstMatch(entry.value);
+          if (match != null && match.groupCount >= 1) {
+            final resolution = '${match.group(1)!}p';
+            final oldCs = entry.value.split('/')[7].substring(0, 32);
+
+            final dlUrl = downloadUrls.entries
+                .firstWhere((e) => e.key.contains(resolution))
+                .value;
+            final newCs = dlUrl.split('/')[5].substring(0, 32);
+            final playUrl = entry.value
+                .replaceFirst('function/0/', '')
+                .replaceFirst(oldCs, newCs);
+            playUrls[resolution] = playUrl;
+          }
+        }
+      }
+
       // 解析相关视频数据
       final relatedVideos =
           R34VideoListParser.parseDocToRelatedVideo(doc: document);
@@ -114,6 +138,7 @@ class R34VideoDetailRepo {
       R34VideoInfo videoInfo = R34VideoInfo(
         title: titleEle.text,
         downloadUrls: downloadUrls,
+        playUrls: playUrls,
         thumbImageUrl: jsonInfo['preview_url'],
         artistInfos: artistInfos,
         uploaderInfo: uploaderInfo,
