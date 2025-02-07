@@ -1,6 +1,5 @@
 import 'package:r34_video/constant/r34_const.dart';
 import 'package:r34_video/repo/entity/r34_community_video.dart';
-import 'package:r34_video/repo/entity/r34_page.dart';
 
 class R34VideoInfo {
   String title;

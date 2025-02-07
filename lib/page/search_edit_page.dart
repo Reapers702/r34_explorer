@@ -172,9 +172,4 @@ class _SearchEditPageState extends State<SearchEditPage> {
       ),
     );
   }
-
-  bool _isHotSearch(String search) {
-    List<String> hotKeywords = ["热", "新", "牧"];
-    return hotKeywords.any((keyword) => search.contains(keyword));
-  }
 }

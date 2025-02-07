@@ -1,7 +1,6 @@
 import 'dart:developer';
 
 import 'package:flutter/material.dart';
-import 'package:http/http.dart';
 import 'package:provider/provider.dart';
 import 'package:r34_video/provider/login_user_provider.dart';
 import 'package:r34_video/repo/local_repo.dart';

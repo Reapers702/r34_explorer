@@ -185,7 +185,6 @@ class _CommunityUserPageState extends State<CommunityUserPage>
                         if (index < _favoriteVideoList.length) {
                           final video = _favoriteVideoList[index];
                           return CommunityVideoBlock(video: video);
-                          ;
                         } else {
                           return const Center(
                             child: CircularProgressIndicator(),

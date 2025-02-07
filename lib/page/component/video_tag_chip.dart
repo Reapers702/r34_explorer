@@ -4,7 +4,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:r34_video/constant/page_routes.dart';
 import 'package:r34_video/page/search_result_page.dart';
-import 'package:r34_video/repo/entity/r34_search_request.dart';
 import 'package:r34_video/repo/entity/r34_video_info.dart';
 
 class VideoSearchHistoryChip extends StatelessWidget {

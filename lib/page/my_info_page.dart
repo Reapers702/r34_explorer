@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import 'package:r34_video/constant/page_routes.dart';
 import 'package:r34_video/page/community_user_page.dart';
 import 'package:r34_video/provider/login_user_provider.dart';
-import 'package:r34_video/repo/local_repo.dart';
 
 class MyInfoPage extends StatefulWidget {
   const MyInfoPage({super.key});
