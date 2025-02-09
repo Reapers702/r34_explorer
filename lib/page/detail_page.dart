@@ -4,10 +4,12 @@ import 'dart:io';
 import 'package:android_intent_plus/android_intent.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:r34_video/constant/page_routes.dart';
 import 'package:r34_video/page/community_user_page.dart';
 import 'package:r34_video/page/component/community_video_block.dart';
 import 'package:r34_video/page/component/video_tag_chip.dart';
+import 'package:r34_video/provider/settings_provider.dart';
 import 'package:r34_video/repo/entity/r34_community_video.dart';
 import 'package:r34_video/repo/entity/r34_page.dart';
 import 'package:r34_video/repo/entity/r34_video_info.dart';
@@ -30,6 +32,7 @@ class _DetailPageState extends State<DetailPage> {
   Future<R34VideoInfo?>? _videoFuture;
 
   void openVideo(String url) async {
+    log('open video url $url');
     if (Platform.isAndroid) {
       final intent = AndroidIntent(
         action: 'android.intent.action.VIEW',
@@ -50,8 +53,11 @@ class _DetailPageState extends State<DetailPage> {
     }
   }
 
-  void _showPlayDialog(Map<String, String> downloadUrls) {
-    final resolutions = downloadUrls.keys.toList();
+  void _showPlayDialog(Map<String, String> downloadUrls,
+      Map<String, String> webUrls, PlayUrlType defaultUrlType) {
+    final dlResolutions = downloadUrls.keys.toList();
+    final webResolutions = webUrls.keys.toList();
+
     showDialog(
       barrierDismissible: true,
       context: context,
@@ -65,20 +71,55 @@ class _DetailPageState extends State<DetailPage> {
               right: 10,
             ),
             width: MediaQuery.of(context).size.width * 0.6,
-            constraints: BoxConstraints(minHeight: 20, maxHeight: 240),
-            child: ListView.separated(
-              shrinkWrap: true,
-              itemCount: resolutions.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 10),
-              itemBuilder: (context, index) {
-                final resolution = resolutions[index];
-                return ElevatedButton(
-                  onPressed: () async => openVideo(
-                    downloadUrls[resolution]!,
+            constraints: BoxConstraints(minHeight: 20, maxHeight: 300),
+            child: DefaultTabController(
+              length: 2,
+              initialIndex: defaultUrlType == PlayUrlType.webPlay ? 0 : 1,
+              child: Column(
+                children: [
+                  TabBar(
+                    tabs: [Text('网页解析'), Text('下载链接')],
+                    labelColor: Colors.grey,
                   ),
-                  child: Text(resolution),
-                );
-              },
+                  const SizedBox(height: 20),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: webResolutions.length,
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final resolution = webResolutions[index];
+                            return ElevatedButton(
+                              onPressed: () async => openVideo(
+                                webUrls[resolution]!,
+                              ),
+                              child: Text(resolution),
+                            );
+                          },
+                        ),
+                        ListView.separated(
+                          shrinkWrap: true,
+                          itemCount: dlResolutions.length,
+                          separatorBuilder: (context, index) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final resolution = dlResolutions[index];
+                            return ElevatedButton(
+                              onPressed: () async => openVideo(
+                                downloadUrls[resolution]!,
+                              ),
+                              child: Text(resolution),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
@@ -93,6 +134,8 @@ class _DetailPageState extends State<DetailPage> {
         ModalRoute.of(context)?.settings.arguments as DetailPageArg;
     final r34Video = pageArg.r34video;
     _videoFuture ??= R34VideoDetailRepo.getVideoInfo(r34Video.detailUrl);
+
+    final settingsProvider = context.read<SettingsProvider>();
 
     return Scaffold(
       appBar: AppBar(
@@ -113,7 +156,10 @@ class _DetailPageState extends State<DetailPage> {
               SizedBox(
                 height: 240,
                 child: GestureDetector(
-                  onTap: () => _showPlayDialog(videoDetail.playUrls),
+                  onTap: () => _showPlayDialog(
+                      videoDetail.downloadUrls,
+                      videoDetail.playUrls,
+                      settingsProvider.settingsModel!.playUrlType),
                   child: Stack(
                     alignment: Alignment.topCenter,
                     children: [

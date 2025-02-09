@@ -48,6 +48,7 @@ dependencies:
   provider: ^6.1.2
   tuple: ^2.0.2
   flutter_launcher_icons: ^0.14.3
+  flutter_settings_ui: ^3.0.1
 
 dev_dependencies:
   flutter_test:

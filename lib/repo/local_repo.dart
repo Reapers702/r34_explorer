@@ -39,6 +39,9 @@ class LocalUserRepo {
 
   static Future<bool> logout() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
-    return await prefs.remove('login') && await prefs.remove('userId');
+    return await prefs.remove('login') &&
+        await prefs.remove('userId') &&
+        await prefs.remove('displayName') &&
+        await prefs.remove('username');
   }
 }

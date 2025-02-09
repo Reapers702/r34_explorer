@@ -33,10 +33,37 @@ class CommunityVideoBlock extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CachedNetworkImage(
-              imageUrl: video.thumbImageUrl,
-              width: 160,
-              height: 90,
+            Stack(
+              alignment: Alignment.bottomLeft,
+              children: [
+                CachedNetworkImage(
+                  imageUrl: video.thumbImageUrl,
+                  width: 160,
+                  height: 90,
+                  progressIndicatorBuilder: (context, url, downloadProgress) =>
+                      LinearProgressIndicator(value: downloadProgress.progress),
+                  errorWidget: (context, url, error) => Icon(Icons.error),
+                ),
+                Positioned(
+                  left: 5,
+                  bottom: 5,
+                  child: Container(
+                    padding: EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      video.duration,
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(width: 10),
             SizedBox(

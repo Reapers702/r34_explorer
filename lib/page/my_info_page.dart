@@ -38,11 +38,19 @@ class _MyInfoPageState extends State<MyInfoPage> with WidgetsBindingObserver {
     }
 
     return Scaffold(
+      appBar: AppBar(
+        title: Text('我的'),
+        backgroundColor: Color.fromRGBO(250, 250, 250, 1),
+        elevation: 0,
+        actions: [
+          IconButton(
+              onPressed: () =>
+                  Navigator.of(context).pushNamed(PageRoutes.settingsPage),
+              icon: Icon(Icons.more_horiz_outlined, color: Colors.grey)),
+        ],
+      ),
       body: Column(
         children: [
-          SizedBox(
-            height: MediaQuery.of(context).padding.top,
-          ),
           Container(
             height: screenSize.height * 0.3,
             alignment: Alignment.center,

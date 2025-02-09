@@ -3,9 +3,8 @@ import 'dart:developer' as dev;
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:r34_video/constant/page_routes.dart';
 import 'package:r34_video/page/component/community_video_block.dart';
-import 'package:r34_video/provider/login_user_provider.dart';
 import 'package:r34_video/repo/entity/r34_community_user.dart';
 import 'package:r34_video/repo/entity/r34_community_video.dart';
 import 'package:r34_video/repo/r34_community_repo.dart';
@@ -143,7 +142,8 @@ class _CommunityUserPageState extends State<CommunityUserPage>
               // 可浮动且吸顶的 Container
               SliverPersistentHeader(
                 pinned: true,
-                delegate: _FloatingContainerDelegate(communityUser),
+                delegate:
+                    _FloatingContainerDelegate(communityUser, widget.userSelf),
               ),
               // 吸顶的 TabBar
               SliverPersistentHeader(
@@ -206,8 +206,9 @@ class _CommunityUserPageState extends State<CommunityUserPage>
 // 可浮动且吸顶的 Container 的代理类
 class _FloatingContainerDelegate extends SliverPersistentHeaderDelegate {
   final R34CommunityUser? _communityUser;
+  final bool _userSelf;
 
-  _FloatingContainerDelegate(this._communityUser);
+  _FloatingContainerDelegate(this._communityUser, this._userSelf);
 
   @override
   Widget build(
@@ -267,18 +268,21 @@ class _FloatingContainerDelegate extends SliverPersistentHeaderDelegate {
             color: Colors.grey,
             child: Stack(
               children: [
-                Positioned(
-                  right: 10,
-                  top: 0,
-                  child: IconButton(
-                    onPressed: () async {
-                      dev.log('log out');
-                      final userProvider = context.read<LoginUserProvider>();
-                      userProvider.logout();
-                    },
-                    icon: const Icon(Icons.logout_outlined),
-                  ),
-                ),
+                ...(_userSelf
+                    ? [
+                        Positioned(
+                          right: 10,
+                          top: 0,
+                          child: IconButton(
+                            onPressed: () async {
+                              Navigator.of(context)
+                                  .pushNamed(PageRoutes.settingsPage);
+                            },
+                            icon: const Icon(Icons.more_horiz_outlined),
+                          ),
+                        )
+                      ]
+                    : []),
                 Positioned(
                   left: avatarLeft,
                   top: avatarTop,

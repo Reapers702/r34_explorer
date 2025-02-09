@@ -7,6 +7,7 @@ import 'package:r34_video/page/index_page.dart';
 import 'package:r34_video/page/login_page.dart';
 import 'package:r34_video/page/my_info_page.dart';
 import 'package:r34_video/page/search_result_page.dart';
+import 'package:r34_video/page/settings_page.dart';
 import 'package:r34_video/provider/search_edit_provider.dart';
 
 class PageRoutes {
@@ -17,6 +18,7 @@ class PageRoutes {
   static const String communityUserPage = '/communityUser';
   static const String searchEditPage = '/searchEdit';
   static const String searchResultPage = '/searchResult';
+  static const String settingsPage = '/settings';
 
   static final Map<String, WidgetBuilder> routes = {
     indexPage: (context) => const IndexPage(),
@@ -29,5 +31,6 @@ class PageRoutes {
           child: const SearchEditPage(),
         ),
     searchResultPage: (context) => const SearchResultPage(),
+    settingsPage: (context) => const SettingsPage(),
   };
 }
