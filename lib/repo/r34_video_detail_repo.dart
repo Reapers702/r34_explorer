@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:developer';
 
 import 'package:r34_video/constant/r34_const.dart';
@@ -146,7 +147,7 @@ class R34VideoDetailRepo {
         tags: tags,
         relatedVideos: relatedVideos,
       );
-      // log('getVideoInfo: ${jsonEncode(videoInfo.toJson())}');
+      log('getVideoInfo: ${jsonEncode(videoInfo.toJson())}');
       return videoInfo;
     } catch (e, st) {
       HttpTraceUtil.handleConnectionError(e);

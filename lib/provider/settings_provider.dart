@@ -36,23 +36,28 @@ class SettingsProvider {
 
 class SettingsModel {
   PlayUrlType playUrlType;
+  bool parseAutoRedirect;
   String version = '1.0.0';
 
   SettingsModel({
     PlayUrlType? playUrlType,
-  }) : playUrlType = playUrlType ?? PlayUrlType.webPlay;
-
-  Map<String, dynamic> toJson() {
-    return {
-      'playUrlType': playUrlType.name,
-      'version': version,
-    };
-  }
+    bool? parseAutoRedirect,
+  })  : playUrlType = playUrlType ?? PlayUrlType.webPlay,
+        parseAutoRedirect = parseAutoRedirect ?? true;
 
   factory SettingsModel.defaultSettings() {
     return SettingsModel(
       playUrlType: PlayUrlType.webPlay,
+      parseAutoRedirect: true,
     );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'playUrlType': playUrlType.name,
+      'parseAutoRedirect': parseAutoRedirect,
+      'version': version,
+    };
   }
 
   factory SettingsModel.fromJson(Map<String, dynamic> json) {
@@ -60,6 +65,7 @@ class SettingsModel {
       playUrlType: PlayUrlType.values
           .where((e) => e.name == json['playUrlType'])
           .firstOrNull,
+      parseAutoRedirect: json['parseAutoRedirect'] ?? false,
     );
   }
 }

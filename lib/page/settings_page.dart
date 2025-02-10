@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_settings_ui/flutter_settings_ui.dart';
 import 'package:provider/provider.dart';
@@ -16,6 +19,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     final loginProvider = context.watch<LoginUserProvider>();
     final settingsProvider = context.read<SettingsProvider>();
+    log('login provider: ${jsonEncode(loginProvider.toJson())}');
 
     return MaterialApp(
       home: Scaffold(
@@ -38,6 +42,18 @@ class _SettingsPageState extends State<SettingsPage> {
                   value: Text(settingsProvider.settingsModel!.playUrlType.desc),
                   onPressed: (context) {
                     _showPlayUrlTypeDialog(context);
+                  },
+                ),
+                SettingsTile.switchTile(
+                  leading: Icon(Icons.location_on_outlined),
+                  title: const Text('自动重定向'),
+                  initialValue:
+                      settingsProvider.settingsModel!.parseAutoRedirect,
+                  onToggle: (value) {
+                    setState(() {
+                      settingsProvider.settingsModel!.parseAutoRedirect = value;
+                      settingsProvider.saveSettings();
+                    });
                   },
                 ),
               ],

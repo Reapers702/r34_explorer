@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:r34_video/repo/entity/r34_login.dart';
 import 'package:r34_video/repo/local_repo.dart';
 
 class LoginUserProvider with ChangeNotifier {
@@ -6,11 +7,15 @@ class LoginUserProvider with ChangeNotifier {
   String? _displayName;
 
   LoginUserProvider() {
-    LocalUserRepo.isLogin()
+    final loginFuture = LocalUserRepo.isLogin();
+    loginFuture
         .then((isLogin) =>
             isLogin ? LocalUserRepo.getUserId() : Future.value(null))
         .then((userId) => setUserId(userId));
-    LocalUserRepo.getDisplayName().then((name) => setDisplayName(name));
+    loginFuture
+        .then((isLogin) =>
+            isLogin ? LocalUserRepo.getDisplayName() : Future.value(null))
+        .then((name) => setDisplayName(name));
   }
 
   int? get userId => _userId;
@@ -25,11 +30,24 @@ class LoginUserProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void login(R34LoginRes loginRes) {
+    _userId = loginRes.data.userId;
+    _displayName = loginRes.data.displayName;
+    notifyListeners();
+  }
+
   Future<bool> logout() async {
     final re = await LocalUserRepo.logout();
     _userId = null;
     _displayName = null;
     notifyListeners();
     return re;
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'userId': userId,
+      'displayName': displayName,
+    };
   }
 }

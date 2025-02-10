@@ -39,9 +39,11 @@ class _LoginPageState extends State<LoginPage> {
     if (context.mounted) {
       final isLogin = await LocalUserRepo.isLogin();
       final userId = await LocalUserRepo.getUserId();
+      final displayName = await LocalUserRepo.getDisplayName();
       if (isLogin) {
         final loginUserProvider = context.read<LoginUserProvider>();
         loginUserProvider.setUserId(userId);
+        loginUserProvider.setDisplayName(displayName);
         Navigator.of(context).pop();
       }
     }

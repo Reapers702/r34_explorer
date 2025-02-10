@@ -14,6 +14,8 @@ import 'package:r34_video/repo/entity/r34_community_video.dart';
 import 'package:r34_video/repo/entity/r34_page.dart';
 import 'package:r34_video/repo/entity/r34_video_info.dart';
 import 'package:r34_video/repo/r34_video_detail_repo.dart';
+import 'package:r34_video/util/http_util.dart';
+import 'package:r34_video/util/toast_util.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 class DetailPageArg {
@@ -30,9 +32,24 @@ class DetailPage extends StatefulWidget {
 
 class _DetailPageState extends State<DetailPage> {
   Future<R34VideoInfo?>? _videoFuture;
+  final Map<String, String> _playRedirectUrl = {};
 
   void openVideo(String url) async {
     log('open video url $url');
+    final settingsProvider = context.read<SettingsProvider>();
+    if (settingsProvider.settingsModel!.parseAutoRedirect) {
+      if (!_playRedirectUrl.containsKey(url)) {
+        final redirectUrl = await HttpUtil.redirectUrl(url);
+        if (redirectUrl == null || redirectUrl.isEmpty) {
+          ToastUtil.showToast('Cannot Redirect Url, Please Try Again Later');
+          return;
+        }
+        _playRedirectUrl[url] = redirectUrl;
+      }
+      url = _playRedirectUrl[url]!;
+    }
+    log('open video url redirect $url');
+
     if (Platform.isAndroid) {
       final intent = AndroidIntent(
         action: 'android.intent.action.VIEW',
@@ -93,9 +110,8 @@ class _DetailPageState extends State<DetailPage> {
                           itemBuilder: (context, index) {
                             final resolution = webResolutions[index];
                             return ElevatedButton(
-                              onPressed: () async => openVideo(
-                                webUrls[resolution]!,
-                              ),
+                              onPressed: () async =>
+                                  openVideo(webUrls[resolution]!),
                               child: Text(resolution),
                             );
                           },
@@ -108,9 +124,8 @@ class _DetailPageState extends State<DetailPage> {
                           itemBuilder: (context, index) {
                             final resolution = dlResolutions[index];
                             return ElevatedButton(
-                              onPressed: () async => openVideo(
-                                downloadUrls[resolution]!,
-                              ),
+                              onPressed: () async =>
+                                  openVideo(downloadUrls[resolution]!),
                               child: Text(resolution),
                             );
                           },

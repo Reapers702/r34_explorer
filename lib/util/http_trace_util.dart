@@ -42,7 +42,7 @@ class HttpTraceUtil {
       errorMessage = 'Unexpected Error: ${error.toString()}';
     }
     errorMessage += st?.toString() ?? '';
-    ToastUtil.showToast(errorMessage);
+    // ToastUtil.showToast(errorMessage);
     LogUtil.info(errorMessage);
   }
 }
