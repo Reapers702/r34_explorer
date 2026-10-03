@@ -7,7 +7,7 @@ import 'package:r34_video/page/component/common/app_search_bar.dart';
 import 'package:r34_video/page/component/common/app_state_view.dart';
 import 'package:r34_video/page/component/filter_bottom_sheet.dart';
 import 'package:r34_video/page/component/video_thumb.dart';
-import 'package:r34_video/repo/entity/r34_page.dart' show R34Page, R34Video;
+import 'package:r34_video/repo/entity/r34_page.dart' show R34Video;
 import 'package:r34_video/repo/r34_home_page_repo.dart';
 import 'package:r34_video/theme/app_colors.dart';
 import 'package:r34_video/theme/app_dimens.dart';

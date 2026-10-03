@@ -50,6 +50,8 @@ dependencies:
   tuple: ^2.0.2
   flutter_launcher_icons: ^0.14.3
   flutter_settings_ui: ^3.0.1
+  # 内置浏览器：网页登录后自动抓取 cookie（站点有 Cloudflare/DDG 风控，手填容易过期）。
+  flutter_inappwebview: ^6.1.5
 
 dev_dependencies:
   flutter_test:

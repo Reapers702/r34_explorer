@@ -1,15 +1,26 @@
+import 'package:r34_video/repo/cookie_store.dart';
+
+const String kR34BaseUrl = 'https://rule34video.com';
+
 class R34Const {
   static const host = 'rule34video.com';
 
-  static const websiteIcon = 'https://rule34video.com/apple-touch-icon.png';
+  static const baseUrl = kR34BaseUrl;
 
-  static final Map<String, String> headers = {
+  static const websiteIcon = '$kR34BaseUrl/apple-touch-icon.png';
+
+  /// 静态请求头。
+  ///
+  /// 注意：这里**不再包含 cookie**。cookie 由 `CookieStore` 统一管理、
+  /// 由 `R34Client` 注入 —— 早期把一份 2025 年的 cookie 写死在这里，
+  /// 站点侧一失效整个 App 就全线请求失败。
+  ///
+  /// 也不要给这个 Map 加 cookie 键，请走 `R34Headers.build()`。
+  static const Map<String, String> headers = {
     'accept': '*/*',
     'accept-language': 'zh-CN,zh;q=0.9',
-    'cookie':
-        '__ddg9_=89.185.25.139; __ddg1_=yth3oyQ9pnKVfRopt7kS; PHPSESSID=thbeskm7a9gm2kg4o9mvt3l6d3; kt_ips=89.185.25.139; kt_tcookie=1; _ga=GA1.1.1262203059.1737562572; kt_rt_popAccess=1; _ga_QKBWZM1667=GS1.1.1737562571.1.1.1737562576.0.0.0; __ddg8_=mM1NTjMIvsZXLPWK; __ddg10_=${DateTime.now().millisecondsSinceEpoch ~/ 1000}; ',
     'priority': 'u=1, i',
-    'referer': 'https://$host/',
+    'referer': '$kR34BaseUrl/',
     'sec-ch-ua':
         '"Not A(Brand";v="8", "Chromium";v="132", "Microsoft Edge";v="132"',
     'sec-ch-ua-mobile': '?0',
@@ -21,4 +32,18 @@ class R34Const {
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 Edg/132.0.0.0',
     'x-requested-with': 'XMLHttpRequest',
   };
+}
+
+/// 请求头构建。
+class R34Headers {
+  const R34Headers._();
+
+  /// 合并静态头与当前 cookie。
+  static Map<String, String> build() {
+    final result = Map<String, String>.of(R34Const.headers);
+    if (CookieStore.hasCookies) {
+      result['cookie'] = CookieStore.toHeaderValue();
+    }
+    return result;
+  }
 }

@@ -225,7 +225,7 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
             ? '${minutes.round()}分'
             : '${minutes.toStringAsFixed(1)}分';
       }
-      return '${seconds}秒';
+      return '$seconds秒';
     }
 
     return '${fmt(_draft.customFromSeconds)} ~ ${fmt(_draft.customToSeconds)}';

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:r34_video/page/community_user_page.dart';
+import 'package:r34_video/page/cookie_settings_page.dart';
 import 'package:r34_video/page/detail_page.dart';
 import 'package:r34_video/page/index_page.dart';
 import 'package:r34_video/page/login_page.dart';
@@ -21,6 +22,7 @@ class PageRoutes {
   static const String searchEditPage = '/searchEdit';
   static const String searchResultPage = '/searchResult';
   static const String settingsPage = '/settings';
+  static const String cookieSettingsPage = '/cookieSettings';
 
   static final Map<String, WidgetBuilder> routes = {
     indexPage: (context) => const IndexPage(),
@@ -35,5 +37,6 @@ class PageRoutes {
         ),
     searchResultPage: (context) => const SearchResultPage(),
     settingsPage: (context) => const SettingsPage(),
+    cookieSettingsPage: (context) => const CookieSettingsPage(),
   };
 }

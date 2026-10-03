@@ -9,7 +9,6 @@ import 'package:r34_video/repo/entity/r34_community_user.dart';
 import 'package:r34_video/repo/entity/r34_community_video.dart';
 import 'package:r34_video/repo/r34_community_repo.dart';
 import 'package:r34_video/theme/app_colors.dart';
-import 'package:r34_video/theme/app_dimens.dart';
 
 class CommunityUserPageArg {
   final int userId;

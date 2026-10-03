@@ -79,8 +79,6 @@ class AppTheme {
           horizontal: AppSpacing.sm,
           vertical: AppSpacing.xxs,
         ),
-        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        visualDensity: VisualDensity.compact,
         showCheckmark: false,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.pill),

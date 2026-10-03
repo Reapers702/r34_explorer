@@ -218,12 +218,12 @@ class FilterSelection {
     if (value >= 3600) {
       final hours = value ~/ 3600;
       final minutes = (value % 3600) ~/ 60;
-      return minutes == 0 ? '${hours}小时' : '${hours}小时${minutes}分';
+      return minutes == 0 ? '$hours小时' : '$hours小时$minutes分';
     }
     if (value >= 60) {
       return '${value ~/ 60}分';
     }
-    return '${value}秒';
+    return '$value秒';
   }
 
   FilterSelection duplicate() {

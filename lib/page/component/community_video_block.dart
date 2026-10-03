@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:r34_video/constant/page_routes.dart';
 import 'package:r34_video/constant/r34_const.dart';
 import 'package:r34_video/page/detail_page.dart';
+import 'package:r34_video/page/component/common/app_state_view.dart';
 import 'package:r34_video/page/component/video_tag_chip.dart' show VideoMetaItem;
 import 'package:r34_video/repo/entity/r34_community_video.dart';
 import 'package:r34_video/repo/entity/r34_page.dart';

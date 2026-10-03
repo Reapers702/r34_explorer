@@ -10,7 +10,6 @@ import 'package:r34_video/repo/entity/r34_page.dart' show R34Video;
 import 'package:r34_video/repo/entity/r34_search_request.dart';
 import 'package:r34_video/repo/r34_search_repo.dart';
 import 'package:r34_video/theme/app_colors.dart';
-import 'package:r34_video/theme/app_dimens.dart';
 
 /// 搜索结果页参数。
 ///

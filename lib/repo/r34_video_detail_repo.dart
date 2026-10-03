@@ -1,10 +1,7 @@
-import 'dart:convert';
-import 'dart:developer';
-
+import 'package:html/parser.dart' as parser;
 import 'package:r34_video/constant/r34_const.dart';
 import 'package:r34_video/repo/entity/r34_video_info.dart';
-import 'package:http/http.dart' as http;
-import 'package:html/parser.dart' as parser;
+import 'package:r34_video/repo/r34_client.dart';
 import 'package:r34_video/util/http_trace_util.dart';
 import 'package:r34_video/util/r34_video_list_parser.dart';
 
@@ -12,20 +9,21 @@ class R34VideoDetailRepo {
   static final RegExp _videoAltUrlResolutionReg = RegExp(r'\d+_(\d+)p');
 
   static Future<R34VideoInfo?> getVideoInfo(String detailUrl) async {
-    http.Response? res;
     try {
-      res = await http
-          .get(
-            Uri.parse(detailUrl),
-            headers: R34Const.headers,
-          )
-          .timeout(const Duration(seconds: 10));
-    } catch (e) {
-      HttpTraceUtil.handleConnectionError(e);
+      final res = await R34Client.instance.get(Uri.parse(detailUrl));
+      if (res.statusCode != 200) {
+        HttpTraceUtil.handleHttpError(res.statusCode);
+        return null;
+      }
+      return _parse(res.body);
+    } catch (e, st) {
+      HttpTraceUtil.handleConnectionError(e, st: st);
+      return null;
     }
+  }
 
+  static R34VideoInfo? _parse(String resBody) {
     try {
-      final resBody = res!.body;
       final document = parser.parse(resBody);
       final titleEle = document.querySelector('h1.title_video')!;
 
@@ -147,11 +145,9 @@ class R34VideoDetailRepo {
         tags: tags,
         relatedVideos: relatedVideos,
       );
-      log('getVideoInfo: ${jsonEncode(videoInfo.toJson())}');
       return videoInfo;
     } catch (e, st) {
-      HttpTraceUtil.handleConnectionError(e);
-      log('r34 video detail repo error: $detailUrl $st');
+      HttpTraceUtil.handleConnectionError(e, st: st);
       return null;
     }
   }

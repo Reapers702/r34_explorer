@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:r34_video/constant/page_routes.dart';
+import 'package:r34_video/page/component/common/app_select_tile.dart';
 import 'package:r34_video/provider/login_user_provider.dart';
 import 'package:r34_video/provider/settings_provider.dart';
+import 'package:r34_video/repo/cookie_store.dart';
 import 'package:r34_video/theme/app_colors.dart';
 import 'package:r34_video/theme/app_dimens.dart';
 
@@ -64,6 +66,16 @@ class SettingsPage extends StatelessWidget {
                 value: _accountLabel(context),
                 onTap: () => _onAccountTap(context),
               ),
+              const _SettingsDivider(),
+              _SettingsNavTile(
+                icon: Icons.cookie_outlined,
+                title: 'Cookie 与登录',
+                value: CookieStore.hasCookies
+                    ? '${CookieStore.length} 条'
+                    : '未设置',
+                onTap: () =>
+                    Navigator.of(context).pushNamed(PageRoutes.cookieSettingsPage),
+              ),
             ],
           ),
           const _SettingsSectionTitle('关于'),
@@ -109,11 +121,11 @@ class SettingsPage extends StatelessWidget {
         title: const Text('播放地址来源'),
         children: PlayUrlType.values
             .map(
-              (type) => RadioListTile<PlayUrlType>(
+              (type) => AppSelectTile<PlayUrlType>(
                 value: type,
-                groupValue: provider.settingsModel.playUrlType,
-                title: Text(type.desc),
-                onChanged: (value) => Navigator.of(dialogContext).pop(value),
+                selectedValue: provider.settingsModel.playUrlType,
+                title: type.desc,
+                onSelected: (value) => Navigator.of(dialogContext).pop(value),
               ),
             )
             .toList(),
@@ -140,11 +152,11 @@ class SettingsPage extends StatelessWidget {
         title: const Text('首选清晰度'),
         children: options.entries
             .map(
-              (entry) => RadioListTile<String?>(
+              (entry) => AppSelectTile<String?>(
                 value: entry.key,
-                groupValue: provider.settingsModel.preferredQuality,
-                title: Text(entry.value),
-                onChanged: (value) => Navigator.of(dialogContext).pop(value),
+                selectedValue: provider.settingsModel.preferredQuality,
+                title: entry.value,
+                onSelected: (value) => Navigator.of(dialogContext).pop(value),
               ),
             )
             .toList(),

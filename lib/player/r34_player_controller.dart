@@ -16,8 +16,7 @@ class R34PlayerController extends ChangeNotifier {
     required this.args,
     String? preferredLabel,
     bool autoPlay = true,
-  })  : _preferredLabel = preferredLabel,
-        _autoPlay = autoPlay,
+  })  : _autoPlay = autoPlay,
         _currentIndex = args.initialIndex(preferredLabel) {
     _player = Player(
       configuration: const PlayerConfiguration(
@@ -31,7 +30,6 @@ class R34PlayerController extends ChangeNotifier {
   }
 
   final PlayerArgs args;
-  final String? _preferredLabel;
   final bool _autoPlay;
 
   late final Player _player;

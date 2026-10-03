@@ -1,9 +1,7 @@
 import 'package:html/dom.dart' as dom;
 import 'package:html/parser.dart' as parser;
-import 'package:http/http.dart' as http;
-import 'package:r34_video/constant/r34_const.dart';
+import 'package:r34_video/repo/r34_client.dart';
 import 'package:r34_video/util/http_trace_util.dart';
-import 'package:r34_video/util/log_util.dart';
 
 class R34Comment {
   final String authorName;
@@ -62,24 +60,15 @@ class R34CommentRepo {
   ];
 
   static Future<List<R34Comment>> getComments(String detailUrl) async {
-    http.Response? res;
     try {
-      res = await http
-          .get(Uri.parse(detailUrl), headers: R34Const.headers)
-          .timeout(const Duration(seconds: 15));
-    } catch (e, st) {
-      HttpTraceUtil.handleConnectionError(e, st: st);
-    }
-
-    if (res == null || res.statusCode != 200) {
-      HttpTraceUtil.handleHttpError(res?.statusCode ?? -1);
-      return const [];
-    }
-
-    try {
+      final res = await R34Client.instance.get(Uri.parse(detailUrl));
+      if (res.statusCode != 200) {
+        HttpTraceUtil.handleHttpError(res.statusCode);
+        return const [];
+      }
       return parseComments(parser.parse(res.body));
     } catch (e, st) {
-      LogUtil.error('parse comments failed: $e\n$st');
+      HttpTraceUtil.handleConnectionError(e, st: st);
       return const [];
     }
   }

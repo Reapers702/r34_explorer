@@ -54,12 +54,15 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
+    final provider = context.read<LoginUserProvider>();
+
     if (!await LocalUserRepo.isLogin()) {
-      _snack('登录失败，请检查账号密码');
+      if (mounted) {
+        _snack('登录失败，请检查账号密码');
+      }
       return;
     }
 
-    final provider = context.read<LoginUserProvider>();
     provider.setUserId(await LocalUserRepo.getUserId());
     provider.setDisplayName(await LocalUserRepo.getDisplayName());
 

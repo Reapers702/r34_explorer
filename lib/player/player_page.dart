@@ -4,6 +4,7 @@ import 'package:media_kit_video/media_kit_video.dart';
 import 'package:provider/provider.dart';
 import 'package:r34_video/player/player_args.dart';
 import 'package:r34_video/player/r34_player_controller.dart';
+import 'package:r34_video/page/component/common/app_select_tile.dart';
 import 'package:r34_video/provider/settings_provider.dart';
 import 'package:r34_video/theme/app_colors.dart';
 import 'package:r34_video/theme/app_dimens.dart';
@@ -111,18 +112,13 @@ class _PlayerPageState extends State<PlayerPage> {
                   itemCount: controller.args.resolutions.length,
                   itemBuilder: (context, index) {
                     final resolution = controller.args.resolutions[index];
-                    return RadioListTile<int>(
+                    return AppSelectTile<int>(
                       value: index,
-                      groupValue: current,
-                      onChanged: (value) => Navigator.of(sheetContext).pop(value),
-                      title: Text(resolution.label),
-                      subtitle: Text(
-                        resolution.source.desc,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppColors.textHint,
-                        ),
-                      ),
+                      selectedValue: current,
+                      title: resolution.label,
+                      subtitle: resolution.source.desc,
+                      onSelected: (value) =>
+                          Navigator.of(sheetContext).pop(value),
                     );
                   },
                 ),
@@ -166,11 +162,12 @@ class _PlayerPageState extends State<PlayerPage> {
                 ),
               ),
               ...speeds.map(
-                (speed) => RadioListTile<double>(
+                (speed) => AppSelectTile<double>(
                   value: speed,
-                  groupValue: controller.rate,
-                  onChanged: (value) => Navigator.of(sheetContext).pop(value),
-                  title: Text('${speed}x'),
+                  selectedValue: controller.rate,
+                  title: '${speed}x',
+                  onSelected: (value) =>
+                      Navigator.of(sheetContext).pop(value),
                 ),
               ),
               const SizedBox(height: AppSpacing.sm),

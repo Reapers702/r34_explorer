@@ -28,12 +28,13 @@ class SingleRadioText<T> extends StatelessWidget {
       spacing: 8,
       runSpacing: 8,
       children: values.map((value) {
-        final name = nameMap.entries
-            .firstWhere(
-              (entry) => entry.value == value,
-              orElse: () => const MapEntry('', null),
-            )
-            .key;
+        String name = '';
+        for (final entry in nameMap.entries) {
+          if (entry.value == value) {
+            name = entry.key;
+            break;
+          }
+        }
         final isSelected = selected == value;
 
         return GestureDetector(

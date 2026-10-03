@@ -28,7 +28,8 @@ class AppStateView extends StatelessWidget {
     this.description,
     this.actionLabel,
     this.onAction,
-  }) : icon = Icons.inbox_outlined;
+    this.icon = Icons.inbox_outlined,
+  });
 
   const AppStateView.error({
     super.key,
@@ -36,7 +37,8 @@ class AppStateView extends StatelessWidget {
     this.description,
     this.actionLabel = '重试',
     this.onAction,
-  }) : icon = Icons.cloud_off_outlined;
+    this.icon = Icons.cloud_off_outlined,
+  });
 
   const AppStateView.noNetwork({
     super.key,
@@ -44,7 +46,8 @@ class AppStateView extends StatelessWidget {
     this.description,
     this.actionLabel = '重试',
     this.onAction,
-  }) : icon = Icons.wifi_off_rounded;
+    this.icon = Icons.wifi_off_rounded,
+  });
 
   @override
   Widget build(BuildContext context) {

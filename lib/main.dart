@@ -5,13 +5,17 @@ import 'package:provider/provider.dart';
 import 'package:r34_video/constant/page_routes.dart';
 import 'package:r34_video/provider/login_user_provider.dart';
 import 'package:r34_video/provider/settings_provider.dart';
+import 'package:r34_video/repo/cookie_store.dart';
 import 'package:r34_video/theme/app_theme.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // package:media_kit 的初始化，必须在 runApp 之前完成。
   MediaKit.ensureInitialized();
+
+  // 先把 cookie 读出来，之后所有请求都从它取（避免首个请求漏带 cookie 被风控拦）。
+  await CookieStore.load();
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(

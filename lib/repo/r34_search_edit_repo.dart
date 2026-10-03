@@ -2,6 +2,7 @@ import 'dart:developer';
 
 import 'package:r34_video/constant/r34_const.dart';
 import 'package:r34_video/repo/entity/r34_video_info.dart';
+import 'package:r34_video/repo/r34_client.dart';
 import 'package:r34_video/util/http_trace_util.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:tuple/tuple.dart';
@@ -44,9 +45,7 @@ class R34SearchEditRepo {
       getTrendingData() async {
     http.Response? res;
     try {
-      res = await http
-          .get(Uri.parse('https://rule34video.com/'), headers: R34Const.headers)
-          .timeout(const Duration(seconds: 10));
+      res = await R34Client.instance.get(Uri.https(R34Const.host, '/'));
     } catch (e, st) {
       HttpTraceUtil.handleConnectionError(e, st: st);
     }
