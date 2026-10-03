@@ -9,6 +9,38 @@ allprojects {
 }
 
 rootProject.buildDir = "../build"
+
+// 统一所有插件模块的 compileSdk。
+//
+// 部分老插件把自己的 compileSdk 钉在 33（例如 fluttertoast 8.2.14），
+// 而它们依赖的 androidx（annotation-experimental 1.4.x）要求编译版本 >= 34，
+// 于是报「is currently compiled against android-33」。
+//
+// 这里不改第三方包源码，统一抬到 app 用的版本（flutter.compileSdkVersion）。
+// 编译版本只决定「能用到哪些 API」，不影响运行时行为。
+//
+// 注意：这个块必须放在下面的 evaluationDependsOn(":app") 之前 ——
+// 那句会提前触发子项目求值，之后再注册 afterEvaluate 会直接抛
+// 「Cannot run Project.afterEvaluate when the project is already evaluated」。
+subprojects {
+    afterEvaluate { project ->
+        def androidExt = project.extensions.findByName('android')
+        if (androidExt != null && androidExt.hasProperty('compileSdkVersion')) {
+            def appExt = project.rootProject
+                    .findProject(':app')
+                    ?.extensions?.findByName('android')
+            def appCompileSdk = (appExt != null && appExt.hasProperty('compileSdkVersion'))
+                    ? appExt.compileSdkVersion
+                    : null
+            if (appCompileSdk != null && androidExt.compileSdkVersion != appCompileSdk) {
+                project.logger.lifecycle("compileSdk: ${project.name} " +
+                        "${androidExt.compileSdkVersion} -> ${appCompileSdk}")
+                androidExt.compileSdkVersion = appCompileSdk
+            }
+        }
+    }
+}
+
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
 }
