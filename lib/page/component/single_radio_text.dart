@@ -1,88 +1,66 @@
-import 'dart:collection';
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
+import 'package:r34_video/theme/app_colors.dart';
 
-class SingleRadioTextController<T> {
-  T currVal;
+/// 单选文本组件。
+///
+/// 早期版本用 `ElevatedButton` + 蓝/橙硬编码配色，这里统一成 [AppChip] 的观感，
+/// 并且去掉了 `SingleRadioTextController`——选中值由父级 state 持有即可，
+/// 多一层 controller 只会带来「两边不同步」的坑。
+class SingleRadioText<T> extends StatelessWidget {
+  final List<T> values;
   final Map<String, T> nameMap;
-
-  SingleRadioTextController({required this.currVal, required this.nameMap});
-
-  String get currName {
-    return nameMap.entries.firstWhere((e) => e.value == currVal).key;
-  }
-}
-
-class SingleRadioText<T> extends StatefulWidget {
-  final SingleRadioTextController<T> controller;
-  final void Function(T)? onSelect;
-
-  final LinkedHashMap<String, T> values;
+  final T? selected;
+  final ValueChanged<T>? onSelect;
   final double fontSize;
 
   const SingleRadioText({
     super.key,
     required this.values,
-    required this.controller,
+    required this.nameMap,
+    this.selected,
     this.onSelect,
-    this.fontSize = 12,
+    this.fontSize = 13,
   });
-
-  @override
-  State<SingleRadioText> createState() => _SingleRadioTextState();
-}
-
-class _SingleRadioTextState extends State<SingleRadioText> {
-  String? nameSelect;
-
-  @override
-  void initState() {
-    super.initState();
-    nameSelect = widget.controller.currName;
-  }
-
-  void _onSelect(String name) {
-    setState(() {
-      log('_onSelect $name');
-      nameSelect = name;
-      widget.controller.currVal = widget.values[name];
-      widget.onSelect?.call(widget.values[name]!);
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
     return Wrap(
       spacing: 8,
       runSpacing: 8,
-      children: widget.values.keys
-          .map(
-            (e) => ElevatedButton(
-              onPressed: () => _onSelect(e),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: nameSelect == e
-                    ? Colors.orangeAccent
-                    : Colors.blue, // 按钮背景颜色
-                foregroundColor: Colors.white, // 文字颜色
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12), // 圆角
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 6,
-                ), // 内边距
-                elevation: 3, // 阴影高度
-              ),
-              child: Text(
-                e,
-                style: TextStyle(
-                  fontSize: widget.fontSize,
-                ),
+      children: values.map((value) {
+        final name = nameMap.entries
+            .firstWhere(
+              (entry) => entry.value == value,
+              orElse: () => const MapEntry('', null),
+            )
+            .key;
+        final isSelected = selected == value;
+
+        return GestureDetector(
+          onTap: onSelect == null ? null : () => onSelect!(value),
+          behavior: HitTestBehavior.opaque,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? AppColors.primary.withValues(alpha: 0.12)
+                  : AppColors.skeleton,
+              borderRadius: BorderRadius.circular(999),
+              border: isSelected
+                  ? Border.all(color: AppColors.primary.withValues(alpha: 0.35))
+                  : null,
+            ),
+            child: Text(
+              name,
+              style: TextStyle(
+                fontSize: fontSize,
+                color: isSelected ? AppColors.primary : AppColors.textPrimary,
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
-          )
-          .toList(),
+          ),
+        );
+      }).toList(),
     );
   }
 }

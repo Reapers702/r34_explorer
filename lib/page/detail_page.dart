@@ -1,26 +1,23 @@
-import 'dart:developer';
-import 'dart:io';
-
-import 'package:android_intent_plus/android_intent.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
 import 'package:r34_video/constant/page_routes.dart';
 import 'package:r34_video/page/community_user_page.dart';
+import 'package:r34_video/page/component/common/app_state_view.dart';
+import 'package:r34_video/page/component/common/section_header.dart';
 import 'package:r34_video/page/component/community_video_block.dart';
 import 'package:r34_video/page/component/video_tag_chip.dart';
-import 'package:r34_video/provider/settings_provider.dart';
-import 'package:r34_video/repo/entity/r34_community_video.dart';
+import 'package:r34_video/player/player_args.dart';
 import 'package:r34_video/repo/entity/r34_page.dart';
 import 'package:r34_video/repo/entity/r34_video_info.dart';
+import 'package:r34_video/repo/r34_comment_repo.dart';
 import 'package:r34_video/repo/r34_video_detail_repo.dart';
-import 'package:r34_video/util/http_util.dart';
-import 'package:r34_video/util/toast_util.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:r34_video/theme/app_colors.dart';
+import 'package:r34_video/theme/app_dimens.dart';
 
-class DetailPageArg {
+class DetailPageArgs {
   final R34Video r34video;
-  DetailPageArg(this.r34video);
+
+  DetailPageArgs(this.r34video);
 }
 
 class DetailPage extends StatefulWidget {
@@ -30,203 +27,116 @@ class DetailPage extends StatefulWidget {
   State<DetailPage> createState() => _DetailPageState();
 }
 
-class _DetailPageState extends State<DetailPage> {
+class _DetailPageState extends State<DetailPage>
+    with SingleTickerProviderStateMixin {
+  late final TabController _tabController =
+      TabController(length: 2, vsync: this);
+
+  DetailPageArgs? _args;
   Future<R34VideoInfo?>? _videoFuture;
-  final Map<String, String> _playRedirectUrl = {};
+  Future<List<R34Comment>>? _commentFuture;
 
-  void openVideo(String url) async {
-    log('open video url $url');
-    final settingsProvider = context.read<SettingsProvider>();
-    if (settingsProvider.settingsModel!.parseAutoRedirect) {
-      if (!_playRedirectUrl.containsKey(url)) {
-        final redirectUrl = await HttpUtil.redirectUrl(url);
-        if (redirectUrl == null || redirectUrl.isEmpty) {
-          ToastUtil.showToast('Cannot Redirect Url, Please Try Again Later');
-          return;
-        }
-        _playRedirectUrl[url] = redirectUrl;
-      }
-      url = _playRedirectUrl[url]!;
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_args != null) {
+      return;
     }
-    log('open video url redirect $url');
-
-    if (Platform.isAndroid) {
-      final intent = AndroidIntent(
-        action: 'android.intent.action.VIEW',
-        data: url,
-        type: 'video/*',
-      );
-      intent.launchChooser('Choose an App');
-    } else {
-      final uri = Uri.parse(url);
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(
-          uri,
-          mode: LaunchMode.externalNonBrowserApplication,
-        );
-      } else {
-        log('Could not launch $uri');
-      }
+    final arguments = ModalRoute.of(context)?.settings.arguments;
+    if (arguments is! DetailPageArgs) {
+      return;
     }
+    _args = arguments;
+    _videoFuture =
+        R34VideoDetailRepo.getVideoInfo(arguments.r34video.detailUrl);
+    _commentFuture = R34CommentRepo.getComments(arguments.r34video.detailUrl);
   }
 
-  void _showPlayDialog(Map<String, String> downloadUrls,
-      Map<String, String> webUrls, PlayUrlType defaultUrlType) {
-    final dlResolutions = downloadUrls.keys.toList();
-    final webResolutions = webUrls.keys.toList();
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
-    showDialog(
-      barrierDismissible: true,
-      context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: Text('Please choose resolution'),
-          content: Container(
-            alignment: Alignment.center,
-            padding: EdgeInsets.only(
-              left: 10,
-              right: 10,
-            ),
-            width: MediaQuery.of(context).size.width * 0.6,
-            constraints: BoxConstraints(minHeight: 20, maxHeight: 300),
-            child: DefaultTabController(
-              length: 2,
-              initialIndex: defaultUrlType == PlayUrlType.webPlay ? 0 : 1,
-              child: Column(
-                children: [
-                  TabBar(
-                    tabs: [Text('网页解析'), Text('下载链接')],
-                    labelColor: Colors.grey,
-                  ),
-                  const SizedBox(height: 20),
-                  Expanded(
-                    child: TabBarView(
-                      children: [
-                        ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: webResolutions.length,
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final resolution = webResolutions[index];
-                            return ElevatedButton(
-                              onPressed: () async =>
-                                  openVideo(webUrls[resolution]!),
-                              child: Text(resolution),
-                            );
-                          },
-                        ),
-                        ListView.separated(
-                          shrinkWrap: true,
-                          itemCount: dlResolutions.length,
-                          separatorBuilder: (context, index) =>
-                              const SizedBox(height: 10),
-                          itemBuilder: (context, index) {
-                            final resolution = dlResolutions[index];
-                            return ElevatedButton(
-                              onPressed: () async =>
-                                  openVideo(downloadUrls[resolution]!),
-                              child: Text(resolution),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      },
+  void _openPlayer(R34VideoInfo video) {
+    if (video.playUrls.isEmpty && video.downloadUrls.isEmpty) {
+      _toast('这个视频没有解析到可播放的地址');
+      return;
+    }
+
+    final args = PlayerArgs.fromUrls(
+      title: video.title,
+      webUrls: video.playUrls,
+      downloadUrls: video.downloadUrls,
+      durationText: _args?.r34video.videoDuration ?? '',
+      posterUrl: video.thumbImageUrl,
+      detailUrl: _args?.r34video.detailUrl,
     );
+
+    if (args.resolutions.isEmpty) {
+      _toast('这个视频没有可播放的地址');
+      return;
+    }
+
+    Navigator.of(context).pushNamed(
+      PageRoutes.playerPage,
+      arguments: args,
+    );
+  }
+
+  void _toast(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+      );
   }
 
   @override
   Widget build(BuildContext context) {
-    // 从 arguments 中提取参数
-    final DetailPageArg pageArg =
-        ModalRoute.of(context)?.settings.arguments as DetailPageArg;
-    final r34Video = pageArg.r34video;
-    _videoFuture ??= R34VideoDetailRepo.getVideoInfo(r34Video.detailUrl);
-
-    final settingsProvider = context.read<SettingsProvider>();
-
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('视频详情'),
+        title: Text(
+          _args?.r34video.title ?? '视频详情',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
       ),
       body: FutureBuilder<R34VideoInfo?>(
         future: _videoFuture,
-        builder: (futureContext, snapshot) {
-          final videoDetail = snapshot.data;
-          if (videoDetail == null) {
-            return Center(
-              child: Text('Data Still Loading'),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final video = snapshot.data;
+          if (video == null) {
+            return AppStateView.error(
+              title: '详情加载失败',
+              description: '可能是网络问题，或者这个视频被删除了',
+              onAction: () {
+                setState(() {
+                  _videoFuture = R34VideoDetailRepo.getVideoInfo(
+                    _args!.r34video.detailUrl,
+                  );
+                });
+              },
             );
           }
 
           return Column(
             children: [
-              SizedBox(
-                height: 240,
-                child: GestureDetector(
-                  onTap: () => _showPlayDialog(
-                      videoDetail.downloadUrls,
-                      videoDetail.playUrls,
-                      settingsProvider.settingsModel!.playUrlType),
-                  child: Stack(
-                    alignment: Alignment.topCenter,
-                    children: [
-                      CachedNetworkImage(
-                        height: 240,
-                        imageUrl: videoDetail.thumbImageUrl!,
-                        fit: BoxFit.fitHeight,
-                      ),
-                      Container(
-                        color: Colors.white.withAlpha((0.3 * 255).toInt()),
-                      ),
-                      Positioned(
-                        top: 0,
-                        bottom: 0,
-                        child: const Icon(
-                          Icons.play_circle_fill,
-                          color: Colors.white,
-                          size: 60,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              _buildHeader(video),
+              _buildTabs(),
               Expanded(
-                child: DefaultTabController(
-                    length: 2,
-                    child: Column(
-                      children: [
-                        SizedBox(
-                          height: 40,
-                          child: TabBar(
-                            dividerColor: Colors.red,
-                            indicatorColor: Colors.pinkAccent,
-                            labelColor: Colors.pinkAccent,
-                            unselectedLabelColor: Colors.grey,
-                            tabs: [
-                              Tab(text: "视频信息"),
-                              Tab(text: "评论"),
-                            ],
-                          ),
-                        ),
-                        Expanded(
-                          child: TabBarView(
-                            children: [
-                              _buildVideoInfoTab(context, videoDetail),
-                              Center(child: Text('这里不太想做了'))
-                            ],
-                          ),
-                        ),
-                      ],
-                    )),
+                child: TabBarView(
+                  controller: _tabController,
+                  children: [
+                    _buildInfoTab(video),
+                    _buildCommentTab(),
+                  ],
+                ),
               ),
             ],
           );
@@ -235,139 +145,312 @@ class _DetailPageState extends State<DetailPage> {
     );
   }
 
-  Widget _buildVideoInfoTab(BuildContext context, R34VideoInfo video) {
-    return SingleChildScrollView(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildUploaderLabel(context, video.uploaderInfo),
-          const SizedBox(height: 8),
-          Container(
-            margin: EdgeInsets.only(left: 8),
-            child: Text(
-              video.title,
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
+  Widget _buildHeader(R34VideoInfo video) {
+    return AspectRatio(
+      aspectRatio: 16 / 9,
+      child: GestureDetector(
+        onTap: () => _openPlayer(video),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (video.thumbImageUrl != null)
+              CachedNetworkImage(
+                imageUrl: video.thumbImageUrl!,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => const AppSkeleton(radius: 0),
+                errorWidget: (context, url, error) => const ColoredBox(
+                  color: AppColors.skeleton,
+                ),
+              )
+            else
+              const ColoredBox(color: AppColors.skeleton),
+            const ColoredBox(color: Color(0x66000000)),
+            const Center(
+              child: Icon(
+                Icons.play_circle_fill_rounded,
+                color: Colors.white,
+                size: 56,
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          _buildArtistLabel(context, video.artistInfos),
-          const SizedBox(height: 8),
-          _buildCategoryLabel(context, video.categories),
-          const SizedBox(height: 8),
-          _buildTagLabel(context, video.tags),
-          const SizedBox(height: 8),
-          const Divider(color: Colors.red, indent: 8, endIndent: 8),
-          _buildRelatedVideo(context, video.relatedVideos),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildUploaderLabel(
-      BuildContext context, VideoUploaderInfo uploaderInfo) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.of(context).pushNamed(
-          PageRoutes.communityUserPage,
-          arguments: CommunityUserPageArg(userId: uploaderInfo.id),
-        );
-      },
-      child: Container(
-        height: 40,
-        color: Colors.grey[500],
-        child: Row(
-          children: [
-            const SizedBox(width: 10),
-            CachedNetworkImage(imageUrl: uploaderInfo.avatarUrl),
-            const SizedBox(width: 10),
-            Text(uploaderInfo.name, style: TextStyle(fontSize: 20)),
+            Positioned(
+              left: AppSpacing.md,
+              bottom: AppSpacing.md,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: 3,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.badgeBackground,
+                  borderRadius: BorderRadius.circular(AppRadius.xs),
+                ),
+                child: Text(
+                  '在应用内播放 · ${video.playUrls.length} 个清晰度',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildArtistLabel(
-      BuildContext context, List<VideoArtistInfo> artistInfos) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _buildTabs() {
+    return ColoredBox(
+      color: AppColors.surface,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TabBar(
+            controller: _tabController,
+            tabs: const [Tab(text: '视频信息'), Tab(text: '评论')],
+          ),
+          const Divider(height: 1),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildInfoTab(R34VideoInfo video) {
+    return ListView(
+      padding: const EdgeInsets.only(bottom: AppSpacing.xl),
       children: [
-        const SizedBox(width: 8),
-        const SizedBox(width: 50, child: Text('艺术家')),
-        Expanded(
-          child: Wrap(
-            direction: Axis.horizontal,
-            children: artistInfos
+        if (video.uploaderInfo.id > 0) _buildUploader(video.uploaderInfo),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.page,
+            AppSpacing.md,
+            AppSpacing.page,
+            AppSpacing.sm,
+          ),
+          child: Text(
+            video.title,
+            style: const TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w700,
+              height: 1.4,
+            ),
+          ),
+        ),
+        if (video.artistInfos.isNotEmpty)
+          VideoChipRow(
+            label: '艺术家',
+            children: video.artistInfos
                 .map((e) => VideoArtistChip(e, showAvatar: true))
                 .toList(),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildCategoryLabel(
-      BuildContext context, List<VideoCategory> categories) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(width: 8),
-        const SizedBox(width: 50, child: Text('分类')),
-        Expanded(
-          child: Wrap(
-            direction: Axis.horizontal,
-            spacing: 8,
-            runSpacing: 8,
-            children: categories
-                .map(
-                  (e) => VideoCategoryChip(e, showAvatar: true),
-                )
+        if (video.categories.isNotEmpty)
+          VideoChipRow(
+            label: '分类',
+            children: video.categories
+                .map((e) => VideoCategoryChip(e, showAvatar: true))
                 .toList(),
           ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTagLabel(BuildContext context, List<VideoTag> tags) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SizedBox(width: 8),
-        const SizedBox(width: 50, child: Text('Tag')),
-        Expanded(
-          child: Wrap(
-            direction: Axis.horizontal,
-            spacing: 4,
-            runSpacing: 4,
-            children: tags.map((e) => VideoTagChip(e)).toList(),
+        if (video.tags.isNotEmpty)
+          VideoChipRow(
+            label: 'Tag',
+            children: video.tags.map((e) => VideoTagChip(e)).toList(),
           ),
-        ),
+        if (video.downloadUrls.isNotEmpty) ...[
+          const SectionHeader(title: '下载'),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: AppSpacing.page),
+            child: Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.sm,
+              children: video.downloadUrls.entries
+                  .map(
+                    (entry) => AppChip.text(
+                      entry.key,
+                      onTap: () => _openPlayer(video),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        ],
+        if (video.relatedVideos.isNotEmpty) ...[
+          const SectionHeader(title: '相关视频'),
+          ...video.relatedVideos.map(
+            (related) => Padding(
+              padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+              child: CommunityVideoBlock(video: related),
+            ),
+          ),
+        ],
       ],
     );
   }
 
-  Widget _buildRelatedVideo(
-      BuildContext context, List<R34CommunityVideo> videos) {
+  Widget _buildUploader(VideoUploaderInfo uploader) {
+    return InkWell(
+      onTap: () {
+        Navigator.of(context).pushNamed(
+          PageRoutes.communityUserPage,
+          arguments: CommunityUserPageArg(userId: uploader.id),
+        );
+      },
+      child: Container(
+        color: AppColors.surface,
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.page,
+          vertical: AppSpacing.md,
+        ),
+        child: Row(
+          children: [
+            ClipOval(
+              child: CachedNetworkImage(
+                imageUrl: uploader.avatarUrl,
+                width: 36,
+                height: 36,
+                fit: BoxFit.cover,
+                errorWidget: (context, url, error) => const SizedBox(
+                  width: 36,
+                  height: 36,
+                  child: ColoredBox(color: AppColors.skeleton),
+                ),
+              ),
+            ),
+            const SizedBox(width: AppSpacing.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    uploader.name,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const Text(
+                    '查看作者主页',
+                    style: TextStyle(fontSize: 11, color: AppColors.textHint),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: AppColors.textHint,
+              size: 20,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCommentTab() {
+    return FutureBuilder<List<R34Comment>>(
+      future: _commentFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final comments = snapshot.data ?? const <R34Comment>[];
+        if (comments.isEmpty) {
+          return AppStateView.empty(
+            title: '还没有评论',
+            description: '站点评论由前端脚本注入，拿不到时就会显示这里',
+            actionLabel: '重新加载',
+            onAction: () {
+              setState(() {
+                _commentFuture =
+                    R34CommentRepo.getComments(_args!.r34video.detailUrl);
+              });
+            },
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.all(AppSpacing.page),
+          itemCount: comments.length,
+          separatorBuilder: (context, index) =>
+              const SizedBox(height: AppSpacing.md),
+          itemBuilder: (context, index) => _CommentTile(comments[index]),
+        );
+      },
+    );
+  }
+}
+
+class _CommentTile extends StatelessWidget {
+  final R34Comment comment;
+
+  const _CommentTile(this.comment);
+
+  @override
+  Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.only(left: 8),
-      child: Column(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Related Videos',
-            style: TextStyle(fontSize: 20),
+          ClipOval(
+            child: comment.avatarUrl == null
+                ? const SizedBox(
+                    width: 32,
+                    height: 32,
+                    child: ColoredBox(color: AppColors.skeleton),
+                  )
+                : CachedNetworkImage(
+                    imageUrl: comment.avatarUrl!,
+                    width: 32,
+                    height: 32,
+                    fit: BoxFit.cover,
+                    errorWidget: (context, url, error) => const SizedBox(
+                      width: 32,
+                      height: 32,
+                      child: ColoredBox(color: AppColors.skeleton),
+                    ),
+                  ),
           ),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: NeverScrollableScrollPhysics(),
-            separatorBuilder: (context, index) => const SizedBox(height: 8),
-            itemCount: videos.length,
-            itemBuilder: (context, index) =>
-                CommunityVideoBlock(video: videos[index]),
+          const SizedBox(width: AppSpacing.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        comment.authorName.isEmpty ? '匿名' : comment.authorName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    if (comment.timeText.isNotEmpty)
+                      Text(
+                        comment.timeText,
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: AppColors.textHint,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppSpacing.xs),
+                Text(
+                  comment.content,
+                  style: const TextStyle(fontSize: 13, height: 1.5),
+                ),
+              ],
+            ),
           ),
         ],
       ),

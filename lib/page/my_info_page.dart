@@ -1,105 +1,88 @@
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:r34_video/constant/page_routes.dart';
 import 'package:r34_video/page/community_user_page.dart';
 import 'package:r34_video/provider/login_user_provider.dart';
+import 'package:r34_video/theme/app_colors.dart';
+import 'package:r34_video/theme/app_dimens.dart';
 
-class MyInfoPage extends StatefulWidget {
+/// 「我的」页。
+///
+/// 已登录时直接复用 [CommunityUserPage]，未登录时给一个干净的引导页
+/// （早期这里是红底 TabBar + 「登录后解锁功能」的占位，比较粗糙）。
+class MyInfoPage extends StatelessWidget {
   const MyInfoPage({super.key});
 
   @override
-  State<MyInfoPage> createState() => _MyInfoPageState();
-}
-
-class _MyInfoPageState extends State<MyInfoPage> with WidgetsBindingObserver {
-  @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    log('user page change life cycle $state');
-    if (state == AppLifecycleState.resumed) {
-      log('user page resume');
-    }
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.of(context).size;
-    final loginUserProvider = context.watch<LoginUserProvider>();
-    final userId = loginUserProvider.userId;
+    final userId = context.watch<LoginUserProvider>().userId;
 
     if (userId != null) {
       return CommunityUserPage(userId: userId, userSelf: true);
     }
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Text('我的'),
-        backgroundColor: Color.fromRGBO(250, 250, 250, 1),
-        elevation: 0,
+        title: const Text('我的'),
         actions: [
           IconButton(
-              onPressed: () =>
-                  Navigator.of(context).pushNamed(PageRoutes.settingsPage),
-              icon: Icon(Icons.more_horiz_outlined, color: Colors.grey)),
+            tooltip: '设置',
+            onPressed: () =>
+                Navigator.of(context).pushNamed(PageRoutes.settingsPage),
+            icon: const Icon(Icons.settings_outlined),
+          ),
         ],
       ),
-      body: Column(
-        children: [
-          Container(
-            height: screenSize.height * 0.3,
-            alignment: Alignment.center,
-            child: GestureDetector(
-              onTap: () =>
-                  Navigator.of(context).pushNamed(PageRoutes.loginPage),
-              child: Container(
-                height: screenSize.height * 0.12,
-                width: screenSize.height * 0.12,
-                alignment: Alignment.center,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 84,
+                height: 84,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(screenSize.height * 0.12),
-                  border: Border.all(color: Colors.grey, width: 2),
+                  shape: BoxShape.circle,
+                  color: AppColors.primary.withValues(alpha: 0.1),
+                  border: Border.all(
+                    color: AppColors.primary.withValues(alpha: 0.25),
+                    width: 1.5,
+                  ),
                 ),
-                child: Text('去登录'),
+                child: const Icon(
+                  Icons.person_outline_rounded,
+                  size: 40,
+                  color: AppColors.primary,
+                ),
               ),
-            ),
-          ),
-          Expanded(
-            child: DefaultTabController(
-              length: 2,
-              child: Column(
-                children: [
-                  Container(
-                    height: 40,
-                    color: Colors.redAccent,
-                    child: TabBar(
-                      tabs:
-                          ['上传的视频', '喜欢的视频'].map((e) => Tab(text: e)).toList(),
-                      indicatorSize: TabBarIndicatorSize.label,
-                    ),
-                  ),
-                  Expanded(
-                    child: Container(
-                      alignment: Alignment.center,
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.lock_outline),
-                          Text('登录后解锁功能'),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+              const SizedBox(height: AppSpacing.lg),
+              const Text(
+                '还没有登录',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
-            ),
+              const SizedBox(height: AppSpacing.xs),
+              const Text(
+                '登录后可以查看自己的上传、收藏和订阅',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12.5, color: AppColors.textHint),
+              ),
+              const SizedBox(height: AppSpacing.xl),
+              SizedBox(
+                width: 180,
+                child: FilledButton(
+                  onPressed: () =>
+                      Navigator.of(context).pushNamed(PageRoutes.loginPage),
+                  child: const Text('去登录'),
+                ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -16,6 +16,11 @@ class LogUtil {
     }
   }
 
+  /// 与 [info] 同级，只是调用处语义更明确。
+  static void warn(String message) => info('[warn] $message');
+
+  static void error(String message) => info('[error] $message');
+
   static List<String> history() {
     return _history.toList();
   }

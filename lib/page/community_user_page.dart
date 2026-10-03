@@ -8,6 +8,8 @@ import 'package:r34_video/page/component/community_video_block.dart';
 import 'package:r34_video/repo/entity/r34_community_user.dart';
 import 'package:r34_video/repo/entity/r34_community_video.dart';
 import 'package:r34_video/repo/r34_community_repo.dart';
+import 'package:r34_video/theme/app_colors.dart';
+import 'package:r34_video/theme/app_dimens.dart';
 
 class CommunityUserPageArg {
   final int userId;
@@ -261,11 +263,11 @@ class _FloatingContainerDelegate extends SliverPersistentHeaderDelegate {
         children: [
           Container(
             height: screenTopPadding,
-            color: Colors.grey,
+            color: AppColors.surface,
           ),
           Container(
             height: currentHeight - screenTopPadding,
-            color: Colors.grey,
+            color: AppColors.surface,
             child: Stack(
               children: [
                 ...(_userSelf
@@ -310,7 +312,8 @@ class _FloatingContainerDelegate extends SliverPersistentHeaderDelegate {
                     _communityUser?.nickName ?? '我的昵称',
                     style: TextStyle(
                       fontSize: nickSize,
-                      color: Colors.pink.shade500,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.textPrimary,
                     ),
                   ),
                 ),
@@ -319,7 +322,13 @@ class _FloatingContainerDelegate extends SliverPersistentHeaderDelegate {
                   top: maxNickOffset.dy + maxNickSize + 10,
                   child: Column(
                     children: [
-                      Text('粉丝数 ${_communityUser?.subscriberCount ?? "未知"}'),
+                      Text(
+                        '粉丝 ${_communityUser?.subscriberCount ?? "-"}',
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: AppColors.textHint,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -353,12 +362,12 @@ class _TabBarDelegate extends SliverPersistentHeaderDelegate {
       BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
       height: 40,
-      color: Colors.pinkAccent,
+      color: AppColors.surface,
       child: TabBar(
         controller: tabController,
         tabs: [
-          Tab(text: '上传的视频 (${communityUser?.uploadVideoCount ?? "未知"})'),
-          Tab(text: '喜欢的视频 (${communityUser?.favoriteVideoCount ?? "未知"})'),
+          Tab(text: '上传的视频 (${communityUser?.uploadVideoCount ?? "-"})'),
+          Tab(text: '喜欢的视频 (${communityUser?.favoriteVideoCount ?? "-"})'),
         ],
       ),
     );

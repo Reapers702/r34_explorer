@@ -30,9 +30,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
-  # media_kit: ^1.1.11 # Primary package.
-  # media_kit_video: ^1.2.5 # For video rendering.
-  # media_kit_libs_video: ^1.0.5 # Native video dependencies.
+  # 内置播放器内核，参考 Han1meViewer 的播放体验（libmpv / ExoPlayer 级别的兼容性）。
+  media_kit: ^1.2.6 # Primary package.
+  media_kit_video: ^2.0.1 # For video rendering.
+  media_kit_libs_video: ^1.0.7 # Native video dependencies.
 
   # The following adds the Cupertino Icons font to your application.
   # Use with the CupertinoIcons class for iOS style icons.

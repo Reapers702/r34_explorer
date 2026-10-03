@@ -1,0 +1,266 @@
+import 'dart:async';
+
+import 'package:flutter/material.dart';
+import 'package:media_kit/media_kit.dart';
+import 'package:media_kit_video/media_kit_video.dart';
+import 'package:r34_video/player/player_args.dart';
+import 'package:r34_video/util/log_util.dart';
+
+/// 播放内核封装。
+///
+/// 把 `media_kit` 的 `Player` / `VideoController` 和「清晰度切换、失败重试、
+/// 播放进度」这些页面真正关心的事收在一起，UI 层不直接碰内核。
+/// 之后要换内核（比如换成 ExoPlayer 的 video_player），只需要改这一个文件。
+class R34PlayerController extends ChangeNotifier {
+  R34PlayerController({
+    required this.args,
+    String? preferredLabel,
+    bool autoPlay = true,
+  })  : _preferredLabel = preferredLabel,
+        _autoPlay = autoPlay,
+        _currentIndex = args.initialIndex(preferredLabel) {
+    _player = Player(
+      configuration: const PlayerConfiguration(
+        // 直播/点播都关掉，避免 mkv 里残留字幕轨道干扰。
+        title: 'Rule34 Explorer',
+        bufferSize: 32 * 1024 * 1024,
+      ),
+    );
+    _videoController = VideoController(_player);
+    _attachStreams();
+  }
+
+  final PlayerArgs args;
+  final String? _preferredLabel;
+  final bool _autoPlay;
+
+  late final Player _player;
+  late final VideoController _videoController;
+
+  final List<StreamSubscription<dynamic>> _subscriptions = [];
+
+  int _currentIndex = 0;
+  bool _initialized = false;
+  bool _buffering = true;
+  bool _playing = false;
+  bool _controlsVisible = true;
+  bool _disposed = false;
+
+  Duration _position = Duration.zero;
+  Duration _duration = Duration.zero;
+  double _volume = 100;
+  double _rate = 1.0;
+  String? _error;
+
+  Timer? _hideTimer;
+
+  Player get player => _player;
+
+  VideoController get videoController => _videoController;
+
+  StreamResolution? get current => _currentIndex >= 0 && _currentIndex < args.resolutions.length
+      ? args.resolutions[_currentIndex]
+      : null;
+
+  int get currentIndex => _currentIndex;
+
+  bool get initialized => _initialized;
+
+  bool get buffering => _buffering;
+
+  bool get playing => _playing;
+
+  bool get controlsVisible => _controlsVisible;
+
+  Duration get position => _position;
+
+  Duration get duration => _duration;
+
+  double get volume => _volume;
+
+  double get rate => _rate;
+
+  String? get error => _error;
+
+  double get progress {
+    if (_duration.inMilliseconds <= 0) {
+      return 0;
+    }
+    return (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0);
+  }
+
+  /// 当前清晰度 URL 对应的 HTTP 头。
+  ///
+  /// rule34video 的 `get_file` 会 302 到 CDN，`remote_control.php` 只认带上
+  /// `Referer` / `User-Agent` 的请求，否则会 403。这里是能播起来的关键。
+  Map<String, String> get httpHeaders => const {
+        'Referer': 'https://rule34video.com/',
+        'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                '(KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 Edg/132.0.0.0',
+      };
+
+  Future<void> initialize() async {
+    if (args.resolutions.isEmpty) {
+      _error = '没有解析到可播放的地址';
+      _buffering = false;
+      _safeNotify();
+      return;
+    }
+    await _openIndex(_currentIndex, autoPlay: _autoPlay);
+  }
+
+  void _attachStreams() {
+    _subscriptions.addAll([
+      _player.stream.playing.listen((value) {
+        _playing = value;
+        _safeNotify();
+      }),
+      _player.stream.buffering.listen((value) {
+        _buffering = value;
+        _safeNotify();
+      }),
+      _player.stream.position.listen((value) {
+        _position = value;
+        _safeNotify();
+      }),
+      _player.stream.duration.listen((value) {
+        _duration = value;
+        _safeNotify();
+      }),
+      _player.stream.volume.listen((value) {
+        _volume = value;
+        _safeNotify();
+      }),
+      _player.stream.rate.listen((value) {
+        _rate = value;
+        _safeNotify();
+      }),
+      _player.stream.error.listen((value) {
+        LogUtil.info('player error: $value');
+        _error = value;
+        _buffering = false;
+        _safeNotify();
+      }),
+    ]);
+  }
+
+  Future<void> _openIndex(int index, {bool autoPlay = true}) async {
+    final resolution = args.resolutions[index];
+    _currentIndex = index;
+    _error = null;
+    _buffering = true;
+    _position = Duration.zero;
+    _duration = Duration.zero;
+    _safeNotify();
+
+    try {
+      await _player.open(
+        Media(resolution.url, httpHeaders: httpHeaders),
+        play: autoPlay,
+      );
+      if (!_disposed) {
+        _initialized = true;
+        _safeNotify();
+      }
+    } catch (e, st) {
+      LogUtil.error('player open failed: $e\n$st');
+      _error = '播放失败：$e';
+      _buffering = false;
+      _safeNotify();
+    }
+  }
+
+  Future<void> switchResolution(int index) async {
+    if (index == _currentIndex ||
+        index < 0 ||
+        index >= args.resolutions.length) {
+      return;
+    }
+    await _openIndex(index, autoPlay: true);
+  }
+
+  Future<void> retry() => _openIndex(_currentIndex, autoPlay: true);
+
+  Future<void> playOrPause() => _player.playOrPause();
+
+  Future<void> seek(Duration position) => _player.seek(position);
+
+  Future<void> seekToFraction(double fraction) {
+    if (_duration.inMilliseconds <= 0) {
+      return Future.value();
+    }
+    final target = Duration(
+      milliseconds: (_duration.inMilliseconds * fraction.clamp(0.0, 1.0)).round(),
+    );
+    return _player.seek(target);
+  }
+
+  Future<void> setVolume(double value) => _player.setVolume(value.clamp(0, 100));
+
+  Future<void> setRate(double value) => _player.setRate(value);
+
+  /// 快进/快退 [seconds] 秒。
+  Future<void> skip(int seconds) {
+    final target = _position + Duration(seconds: seconds);
+    if (target < Duration.zero) {
+      return _player.seek(Duration.zero);
+    }
+    if (_duration > Duration.zero && target > _duration) {
+      return _player.seek(_duration);
+    }
+    return _player.seek(target);
+  }
+
+  // ---- 控件显隐 ----
+
+  void setControlsVisible(bool visible) {
+    if (_controlsVisible == visible) {
+      return;
+    }
+    _controlsVisible = visible;
+    if (visible) {
+      _scheduleHide();
+    } else {
+      _hideTimer?.cancel();
+    }
+    _safeNotify();
+  }
+
+  void toggleControls() => setControlsVisible(!_controlsVisible);
+
+  void _scheduleHide() {
+    _hideTimer?.cancel();
+    _hideTimer = Timer(const Duration(seconds: 4), () {
+      if (_playing && !_disposed) {
+        setControlsVisible(false);
+      }
+    });
+  }
+
+  /// 触摸屏幕时调用：隐藏中则显示，显示中则重新计时。
+  void pokeControls() {
+    if (_controlsVisible) {
+      _scheduleHide();
+    } else {
+      setControlsVisible(true);
+    }
+  }
+
+  void _safeNotify() {
+    if (!_disposed) {
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    _disposed = true;
+    _hideTimer?.cancel();
+    for (final subscription in _subscriptions) {
+      subscription.cancel();
+    }
+    _player.dispose();
+    super.dispose();
+  }
+}

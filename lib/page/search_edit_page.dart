@@ -1,12 +1,13 @@
-import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:r34_video/constant/page_routes.dart';
+import 'package:r34_video/page/component/common/app_search_bar.dart';
+import 'package:r34_video/page/component/common/section_header.dart';
 import 'package:r34_video/page/component/video_tag_chip.dart';
 import 'package:r34_video/page/search_result_page.dart';
 import 'package:r34_video/provider/search_edit_provider.dart';
-import 'package:r34_video/util/toast_util.dart';
+import 'package:r34_video/theme/app_colors.dart';
+import 'package:r34_video/theme/app_dimens.dart';
 
 class SearchEditPage extends StatefulWidget {
   const SearchEditPage({super.key});
@@ -16,159 +17,175 @@ class SearchEditPage extends StatefulWidget {
 }
 
 class _SearchEditPageState extends State<SearchEditPage> {
-  final TextEditingController _searchController = TextEditingController();
+  final TextEditingController _controller = TextEditingController();
 
-  void _submitSearch(SearchEditProvider provider) {
-    final searchText = _searchController.text;
-    if (searchText.isEmpty) {
-      ToastUtil.showToast('请输入合法内容');
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      final provider = context.read<SearchEditProvider>();
+      provider.loadHistory();
+      provider.loadTrending();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _submit(String rawText) {
+    final text = rawText.trim();
+    if (text.isEmpty) {
+      _toast('请输入要搜索的内容');
+      return;
     }
 
-    log('search text: $searchText');
+    context.read<SearchEditProvider>().addSearchHistory(text);
     Navigator.of(context).pushNamed(
       PageRoutes.searchResultPage,
-      arguments: SearchResultPageArg(searchText),
+      arguments: SearchResultPageArgs(text),
     );
+  }
 
-    provider.addSearchHistory(searchText);
+  void _toast(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+      );
   }
 
   @override
   Widget build(BuildContext context) {
-    final editProvider = context.watch<SearchEditProvider>();
+    final provider = context.watch<SearchEditProvider>();
 
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        backgroundColor: Colors.white,
-        foregroundColor: Colors.grey,
-        shadowColor: Colors.transparent,
-        titleSpacing: 0,
+        titleSpacing: AppSpacing.page,
         title: Row(
           children: [
             Expanded(
-              child: Container(
-                height: 36,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey),
-                  borderRadius: BorderRadius.circular(16),
-                ),
-                child: TextField(
-                  controller: _searchController,
-                  style: TextStyle(fontSize: 16, color: Colors.grey),
-                  decoration: InputDecoration(
-                    hintText: "搜点东西试试",
-                    prefixIcon: Icon(Icons.search),
-                    border: InputBorder.none,
-                    focusedBorder: InputBorder.none,
-                    contentPadding:
-                        EdgeInsets.only(left: 0, right: 10, bottom: 12.5),
-                  ),
-                  onSubmitted: (value) {
-                    _submitSearch(editProvider);
-                  },
-                ),
+              child: AppSearchBar(
+                controller: _controller,
+                autofocus: true,
+                hintText: '搜点东西试试',
+                onSubmitted: _submit,
+                onClear: () => _controller.clear(),
               ),
             ),
-            const SizedBox(width: 12),
-            Container(
-              width: 40,
-              alignment: Alignment.center,
-              child: GestureDetector(
-                onTap: () => _submitSearch(editProvider),
-                child: Text(
-                  "搜索",
-                  style: TextStyle(color: Colors.red, fontSize: 18),
-                ),
-              ),
+            const SizedBox(width: AppSpacing.sm),
+            TextButton(
+              onPressed: () => _submit(_controller.text),
+              child: const Text('搜索'),
             ),
-            const SizedBox(width: 12),
           ],
         ),
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      body: RefreshIndicator(
+        color: AppColors.primary,
+        onRefresh: () async {
+          await provider.loadTrending();
+        },
+        child: ListView(
+          padding: const EdgeInsets.only(bottom: AppSpacing.xl),
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                "搜索历史",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+            SectionHeader(
+              title: '搜索历史',
+              trailing: provider.history.isEmpty
+                  ? null
+                  : TextButton(
+                      onPressed: () => provider.clearSearchHistory(),
+                      style: TextButton.styleFrom(
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: AppColors.textHint,
+                      ),
+                      child: const Text(
+                        '清空',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                    ),
             ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: editProvider
-                    .getSearchHistory()
-                    .map((e) => VideoSearchHistoryChip(
+            if (provider.historyLoading && provider.history.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                child: AppSkeleton(height: 28),
+              )
+            else if (provider.history.isEmpty)
+              const InlineEmpty('还没有搜索记录')
+            else
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.page,
+                ),
+                child: Wrap(
+                  spacing: AppSpacing.sm,
+                  runSpacing: AppSpacing.sm,
+                  children: provider.history
+                      .map(
+                        (e) => VideoSearchHistoryChip(
                           e,
-                          onDelete: () {
-                            editProvider.removeSearchHistory(e);
-                          },
-                        ))
-                    .toList(),
+                          onDelete: () => provider.removeSearchHistory(e),
+                        ),
+                      )
+                      .toList(),
+                ),
               ),
+            const SectionHeader(title: '热搜 Tag'),
+            _buildChipSection(
+              loading: provider.trendingLoading,
+              empty: provider.trendingTags.isEmpty,
+              children: provider.trendingTags
+                  .map((e) => VideoTagChip(e))
+                  .toList(),
             ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                "热搜分类",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
+            const SectionHeader(title: '热搜分类'),
+            _buildChipSection(
+              loading: provider.trendingLoading,
+              empty: provider.trendingCategories.isEmpty,
+              children: provider.trendingCategories
+                  .map((e) => VideoCategoryChip(e, showAvatar: true))
+                  .toList(),
             ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: editProvider
-                    .getTrendingCategories()
-                    .map((e) => VideoCategoryChip(e, showAvatar: true))
-                    .toList(),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                "热搜创作者",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: editProvider
-                    .getTrendingArtists()
-                    .map((e) => VideoArtistChip(e, showAvatar: true))
-                    .toList(),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Text(
-                "热搜 Tag",
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-              ),
-            ),
-            Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
-              child: Wrap(
-                spacing: 8,
-                runSpacing: 4,
-                children: editProvider
-                    .getTrendingTags()
-                    .map((e) => VideoTagChip(e))
-                    .toList(),
-              ),
+            const SectionHeader(title: '热搜创作者'),
+            _buildChipSection(
+              loading: provider.trendingLoading,
+              empty: provider.trendingArtists.isEmpty,
+              children: provider.trendingArtists
+                  .map((e) => VideoArtistChip(e, showAvatar: true))
+                  .toList(),
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildChipSection({
+    required bool loading,
+    required bool empty,
+    required List<Widget> children,
+  }) {
+    if (loading && empty) {
+      return const Padding(
+        padding: EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+        child: AppSkeleton(height: 28),
+      );
+    }
+    if (empty) {
+      return const InlineEmpty('暂时没取到数据，下拉刷新试试');
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.page),
+      child: Wrap(
+        spacing: AppSpacing.sm,
+        runSpacing: AppSpacing.sm,
+        children: children,
       ),
     );
   }
