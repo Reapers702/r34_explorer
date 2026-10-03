@@ -160,14 +160,16 @@ class _HomePageState extends State<HomePage>
         slivers: [
           SliverAppBar(
             pinned: true,
-            toolbarHeight: topPadding + 48,
+            // 自己处理状态栏高度，避免框架再叠加一次 padding。
+            primary: false,
+            toolbarHeight: topPadding + 52,
             backgroundColor: AppColors.surface,
             surfaceTintColor: Colors.transparent,
             elevation: 0,
             automaticallyImplyLeading: false,
             titleSpacing: 0,
             title: Padding(
-              padding: EdgeInsets.only(top: topPadding),
+              padding: EdgeInsets.only(top: topPadding, bottom: AppSpacing.sm),
               child: AppToolbar(
                 searchBar: AppSearchBar(
                   hintText: '来搜点什么吧',

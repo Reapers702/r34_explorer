@@ -32,11 +32,15 @@ class FilterBottomSheet extends StatefulWidget {
   final bool showSort;
   final bool sortableRelevant;
 
+  /// 每次改动后回调，方便内嵌使用时实时联动（弹窗形式则直接用返回值）。
+  final ValueChanged<FilterSelection>? onChanged;
+
   const FilterBottomSheet({
     super.key,
     required this.initial,
     this.showSort = true,
     this.sortableRelevant = false,
+    this.onChanged,
   });
 
   @override
@@ -50,6 +54,12 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
   void initState() {
     super.initState();
     _draft = widget.initial.duplicate();
+  }
+
+  /// 改一个条件并通知外部。
+  void _update(void Function(FilterSelection draft) mutate) {
+    setState(() => mutate(_draft));
+    widget.onChanged?.call(_draft);
   }
 
   List<MapEntry<String, HomeSortEnum>> get _sortOptions {
@@ -99,8 +109,8 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                                 (entry) => _FilterRadioChip(
                                   label: entry.key,
                                   selected: _draft.sortType == entry.value,
-                                  onTap: () => setState(
-                                    () => _draft.sortType = entry.value,
+                                  onTap: () => _update(
+                                    (draft) => draft.sortType = entry.value,
                                   ),
                                 ),
                               )
@@ -128,10 +138,10 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                             (entry) => _FilterRadioChip(
                               label: entry.key,
                               selected: _draft.duration == entry.value,
-                              onTap: () => setState(() {
-                                _draft.duration = entry.value;
-                                _draft.customFromSeconds = null;
-                                _draft.customToSeconds = null;
+                              onTap: () => _update((draft) {
+                                draft.duration = entry.value;
+                                draft.customFromSeconds = null;
+                                draft.customToSeconds = null;
                               }),
                             ),
                           ),
@@ -159,8 +169,8 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                               (entry) => _FilterRadioChip(
                                 label: entry.key,
                                 selected: _draft.dateAdded == entry.value,
-                                onTap: () => setState(
-                                  () => _draft.dateAdded = entry.value,
+                                onTap: () => _update(
+                                  (draft) => draft.dateAdded = entry.value,
                                 ),
                               ),
                             )
@@ -296,10 +306,10 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                       });
                       return;
                     }
-                    setState(() {
-                      _draft.duration = VideoDuration.custom;
-                      _draft.customFromSeconds = from;
-                      _draft.customToSeconds = to;
+                    _update((draft) {
+                      draft.duration = VideoDuration.custom;
+                      draft.customFromSeconds = from;
+                      draft.customToSeconds = to;
                     });
                     Navigator.of(dialogContext).pop(true);
                   },
@@ -336,7 +346,9 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
           Expanded(
             child: OutlinedButton(
               onPressed: () {
-                Navigator.of(context).pop(FilterSelection());
+                final reset = FilterSelection();
+                widget.onChanged?.call(reset);
+                Navigator.of(context).pop(reset);
               },
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.textSecondary,
