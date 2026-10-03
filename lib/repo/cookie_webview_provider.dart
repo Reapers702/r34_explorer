@@ -38,14 +38,14 @@ abstract class CookieWebViewProvider {
 
   /// 默认实现。
   ///
-  /// 用工厂判断是因为 Windows 上 WebView2 的行为差异较大（插件在 Windows
-  /// 端仍是 0.x），先只在移动端启用，桌面端继续走手动粘贴，避免给用户
-  /// 一个点了就崩的入口。
+  /// 移动端用内置 WebView；Windows 上插件（0.6.0）也支持我们用到的那几个回调
+  /// 和 CookieManager，所以一并开启 —— 但桌面端若取不到 cookie，页面会提示
+  /// 并引导走「手动粘贴」，不会卡死。
   static CookieWebViewProvider instance = _createDefault();
 
   static CookieWebViewProvider _createDefault() {
     try {
-      if (Platform.isAndroid || Platform.isIOS) {
+      if (Platform.isAndroid || Platform.isIOS || Platform.isWindows) {
         return const InAppCookieWebViewProvider();
       }
     } catch (_) {
