@@ -93,12 +93,19 @@ class TagSearchBar extends StatefulWidget {
   /// 联想查询。返回空列表则不弹下拉。
   final Future<List<TagSuggestion>> Function(String query) searchTags;
 
+  /// 可选：显式「搜索」动作（先选好几个 tag 再一起搜）。
+  ///
+  /// 为 null 时右侧不显示搜索按钮，行为与之前一致（由外部在 onChanged
+  /// 里决定何时发请求）。
+  final VoidCallback? onSearch;
+
   const TagSearchBar({
     super.key,
     required this.selectedTags,
     required this.onChanged,
     required this.rules,
     required this.searchTags,
+    this.onSearch,
   });
 
   @override
@@ -238,6 +245,7 @@ class _TagSearchBarState extends State<TagSearchBar> {
               loading: _loading,
               onChanged: _onTextChanged,
               onSubmit: _addTag,
+              onSearch: widget.onSearch,
             ),
           ),
         ),
@@ -372,6 +380,7 @@ class _TagInputField extends StatelessWidget {
   final bool loading;
   final ValueChanged<String> onChanged;
   final ValueChanged<String> onSubmit;
+  final VoidCallback? onSearch;
 
   const _TagInputField({
     required this.controller,
@@ -379,6 +388,7 @@ class _TagInputField extends StatelessWidget {
     required this.hintText,
     required this.onChanged,
     required this.onSubmit,
+    this.onSearch,
     this.loading = false,
   });
 
@@ -432,6 +442,18 @@ class _TagInputField extends StatelessWidget {
                 child: CircularProgressIndicator(strokeWidth: 2),
               ),
             ),
+          if (onSearch != null) ...[
+            IconButton(
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 40, minHeight: 36),
+              iconSize: 18,
+              color: AppColors.primary,
+              tooltip: '按已选 tag 搜索',
+              onPressed: onSearch,
+              icon: const Icon(Icons.search_rounded),
+            ),
+            const SizedBox(width: AppSpacing.xs),
+          ],
           IconButton(
             padding: EdgeInsets.zero,
             constraints: const BoxConstraints(minWidth: 36, minHeight: 36),

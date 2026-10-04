@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
@@ -52,11 +50,11 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
 
   int _total = -1;
 
-  /// 最近 tag 搜索历史（本地），下拉历史里点击可再次搜索。
+  /// 最近 tag 搜索历史（本地），搜索框聚焦时展示，点击可再次搜索。
   List<String> _searchHistory = const [];
 
-  /// 防抖：输入停顿 800ms 且当前有内容时记一条搜索历史，避免记录每次中间输入。
-  Timer? _historyDebounce;
+  /// 搜索框是否聚焦：聚焦时展示「最近 tag」条。
+  bool _searchFocused = false;
 
   int _pageCountOf(R34XxxPage result) {
     if (result.posts.isEmpty) {
@@ -91,7 +89,6 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
 
   @override
   void dispose() {
-    _historyDebounce?.cancel();
     _grid.removeListener(_onGridChanged);
     _grid.dispose();
     super.dispose();
@@ -103,7 +100,10 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
     }
   }
 
-  /// tag 条件变化（增 / 删 / 清空）：回到第一页重新拉。
+  /// tag 条件变化（增 / 删 / 清空）。
+  ///
+  /// 添加 tag 时只更新已选 chips，**不**发搜索请求（等用户点「搜索」再批量搜，
+  /// 避免选几个 tag 浪费好几次请求）；删除/清空是缩小条件，立即刷新。
   Future<void> _onTagsChanged(String tags) async {
     final next = tags.trim().isEmpty
         ? const <String>[]
@@ -111,20 +111,27 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
     if (listEquals(next, _tags)) {
       return;
     }
+    final removing = next.length < _tags.length;
     setState(() => _tags = next);
-    _scheduleHistoryRecord();
+    if (removing) {
+      await _grid.reset();
+    }
+  }
+
+  /// 显式搜索：按当前所有已选 tag 请求，并记一条搜索历史。
+  Future<void> _onSearchSubmit() async {
+    FocusManager.instance.primaryFocus?.unfocus();
+    _recordCurrentSearch();
     await _grid.reset();
   }
 
-  /// 输入停顿后记一条搜索历史（有实际内容时）。
-  void _scheduleHistoryRecord() {
-    _historyDebounce?.cancel();
-    _historyDebounce = Timer(const Duration(milliseconds: 800), () async {
-      final query = _query;
-      if (query.isEmpty) {
-        return;
-      }
-      await R34XxxSearchHistoryRepo.addSearchHistory(query);
+  /// 把当前 tag 组合记入「最近 tag」历史。
+  void _recordCurrentSearch() {
+    final query = _query;
+    if (query.isEmpty) {
+      return;
+    }
+    R34XxxSearchHistoryRepo.addSearchHistory(query).then((_) async {
       final history = await R34XxxSearchHistoryRepo.getHistory();
       if (mounted) {
         setState(() => _searchHistory = history);
@@ -134,10 +141,11 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
 
   /// 点击「最近 tag」里的某一项：用它重新搜索。
   Future<void> _applyTags(String tags) async {
+    FocusManager.instance.primaryFocus?.unfocus();
     final next =
         tags.trim().isEmpty ? const <String>[] : tags.trim().split(' ');
     setState(() => _tags = next);
-    _historyDebounce?.cancel();
+    _recordCurrentSearch();
     await _grid.reset();
   }
 
@@ -198,11 +206,19 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: TagSearchBar(
-                            selectedTags: _tags,
-                            rules: TagRules.rule34xxx,
-                            searchTags: _autocomplete,
-                            onChanged: _onTagsChanged,
+                          child: Focus(
+                            onFocusChange: (focused) {
+                              if (mounted && focused != _searchFocused) {
+                                setState(() => _searchFocused = focused);
+                              }
+                            },
+                            child: TagSearchBar(
+                              selectedTags: _tags,
+                              rules: TagRules.rule34xxx,
+                              searchTags: _autocomplete,
+                              onChanged: _onTagsChanged,
+                              onSearch: _onSearchSubmit,
+                            ),
                           ),
                         ),
                         const SizedBox(width: AppSpacing.xs),
@@ -216,7 +232,9 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
                     ),
                   ),
                   _buildQueryBar(),
-                  if (_searchHistory.isNotEmpty) _buildHistoryBar(),
+                  // 搜索框聚焦时才展示「最近 tag」，避免常驻占地方。
+                  if (_searchFocused && _searchHistory.isNotEmpty)
+                    _buildHistoryBar(),
                 ],
               ),
             ),
