@@ -329,7 +329,7 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
           mainAxisSpacing: AppSpacing.sm,
         ),
         itemCount: 12,
-        itemBuilder: (context, index) => const AppSkeleton(),
+        itemBuilder: (context, index) => const _GridSkeleton(),
       );
     }
 
@@ -367,7 +367,7 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
           itemCount: posts.length + (_grid.loading ? 3 : 0),
           itemBuilder: (context, index) {
             if (index >= posts.length) {
-              return const AppSkeleton();
+              return const _GridSkeleton();
             }
             return _XxxThumb(posts[index]);
           },
@@ -388,14 +388,15 @@ class _XxxThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.of(context).pushNamed(
-          PageRoutes.r34XxxDetailPage,
-          arguments: R34XxxDetailPageArgs(post),
-        );
-      },
-      child: ClipRRect(
+    return ExcludeSemantics(
+      child: GestureDetector(
+        onTap: () {
+          Navigator.of(context).pushNamed(
+            PageRoutes.r34XxxDetailPage,
+            arguments: R34XxxDetailPageArgs(post),
+          );
+        },
+        child: ClipRRect(
         borderRadius: BorderRadius.circular(AppRadius.sm),
         child: Stack(
           fit: StackFit.expand,
@@ -403,7 +404,8 @@ class _XxxThumb extends StatelessWidget {
             CachedNetworkImage(
               imageUrl: post.previewUrl,
               fit: BoxFit.cover,
-              placeholder: (context, url) => const AppSkeleton(radius: 0),
+              placeholder: (context, url) =>
+                  const ColoredBox(color: AppColors.skeleton),
               errorWidget: (context, url, error) => const ColoredBox(
                 color: AppColors.skeleton,
                 child: Icon(
@@ -427,6 +429,26 @@ class _XxxThumb extends StatelessWidget {
               ),
           ],
         ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 网格加载占位：静态色块。
+///
+/// 特意不用 [AppSkeleton]（呼吸动画）：网格里几十个骨架同时动画，
+/// 每帧都在重建语义节点，会把 Windows 引擎的 accessibility 树刷崩
+/// （就是日志里刷屏的 `Failed to update ui::AXTree`），也浪费性能。
+class _GridSkeleton extends StatelessWidget {
+  const _GridSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.skeleton,
+        borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
     );
   }
