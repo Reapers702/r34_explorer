@@ -1,9 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:r34_video/constant/page_routes.dart';
 import 'package:r34_video/page/component/common/app_state_view.dart';
 import 'package:r34_video/page/component/common/section_header.dart';
 import 'package:r34_video/page/component/video_tag_chip.dart';
+import 'package:r34_video/player/player_args.dart';
 import 'package:r34_video/repo/entity/r34_xxx_post.dart';
 import 'package:r34_video/repo/local_content_repo.dart';
 import 'package:r34_video/repo/r34_xxx_repo.dart';
@@ -153,6 +155,11 @@ class _R34XxxDetailPageState extends State<R34XxxDetailPage> {
   }
 
   Widget _buildImage(R34XxxPost post, {bool immersive = false}) {
+    // 视频帖：展示封面 + 播放按钮，点击进应用内播放器（不走图片的缩放逻辑）。
+    if (post.isVideo) {
+      return _buildVideoPost(post);
+    }
+
     // 先 sample 后原图：sample 通常只有几百 KB，原图动辄十几 MB。
     final useOriginal = _showOriginal;
     final url = useOriginal
@@ -207,6 +214,73 @@ class _R34XxxDetailPageState extends State<R34XxxDetailPage> {
               aspectRatio: post.aspectRatio.clamp(0.4, 2.5),
               child: canvas,
             ),
+    );
+  }
+
+  /// 视频帖：16:9 封面 + 播放按钮，点击进应用内播放器。
+  Widget _buildVideoPost(R34XxxPost post) {
+    final cover =
+        post.sampleUrl.isNotEmpty ? post.sampleUrl : post.previewUrl;
+    return GestureDetector(
+      onTap: () => _openVideoPlayer(post),
+      child: AspectRatio(
+        aspectRatio: 16 / 9,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            CachedNetworkImage(
+              imageUrl: cover,
+              fit: BoxFit.cover,
+              placeholder: (context, url) => const AppSkeleton(radius: 0),
+              errorWidget: (context, url, error) => const ColoredBox(
+                color: AppColors.skeleton,
+              ),
+            ),
+            const ColoredBox(color: Color(0x55000000)),
+            const Center(
+              child: Icon(
+                Icons.play_circle_fill_rounded,
+                color: Colors.white,
+                size: 64,
+              ),
+            ),
+            Positioned(
+              left: AppSpacing.md,
+              bottom: AppSpacing.md,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: 3,
+                ),
+                decoration: BoxDecoration(
+                  color: AppColors.badgeBackground,
+                  borderRadius: BorderRadius.circular(AppRadius.xs),
+                ),
+                child: const Text(
+                  '视频 · 应用内播放',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openVideoPlayer(R34XxxPost post) {
+    final args = PlayerArgs(
+      title: 'post #${post.id}',
+      resolutions: [StreamResolution(label: '原画', url: post.fileUrl)],
+      posterUrl: post.sampleUrl.isNotEmpty ? post.sampleUrl : post.previewUrl,
+    );
+    Navigator.of(context).pushNamed(
+      PageRoutes.playerPage,
+      arguments: args,
     );
   }
 

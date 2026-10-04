@@ -61,6 +61,13 @@ class R34XxxPost {
       }[rating] ??
       rating;
 
+  /// 是否视频帖。rule34.xxx 的视频投稿 fileUrl 以视频扩展名结尾。
+  bool get isVideo {
+    const videoExts = ['.mp4', '.webm', '.mov', '.m4v', '.mkv'];
+    final url = fileUrl.toLowerCase();
+    return videoExts.any(url.endsWith);
+  }
+
   DateTime? get updatedAt {
     if (change <= 0) {
       return null;
