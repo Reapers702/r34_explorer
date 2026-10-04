@@ -27,11 +27,6 @@ class LocalUserRepo {
     return prefs.getString('displayName') ?? '';
   }
 
-  static Future<Map<String, String>> getCookie() async {
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    return jsonDecode(prefs.getString('cookies') ?? '{}');
-  }
-
   static Future<int> getUserId() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     return prefs.getInt('userId') ?? 0;
