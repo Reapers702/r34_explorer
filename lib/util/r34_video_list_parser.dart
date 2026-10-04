@@ -116,6 +116,12 @@ class R34VideoListParser {
   ///
   /// 站点分页里「Last」按钮上带 `data-parameters="...:N"`，早期代码只认
   /// `href` 一种形式，遇到 `data-parameters` 就永远只有 1 页。
+  ///
+  /// 后来发现分页链接**全部**都带 `data-parameters`（首页 `from:02`、
+  /// 搜索页 `q:x;from_videos+from_albums:02`）。若像早期版本那样在
+  /// 第一个数字 > 1 的链接处提前 `break`，任何搜索/列表都只会显示 2 页，
+  /// 所以这里改成遍历所有链接、取其中出现的最大页码 —— 「Last」链接的
+  /// `data-parameters` 就是总页数，天然是最大值。
   static int parsePageCount(dom.Document doc, ParseType parseType) {
     if (parseType.paginationId.isEmpty) {
       return 1;
@@ -131,18 +137,24 @@ class R34VideoListParser {
       final href = link.attributes['href'] ?? '';
       final label = link.text.trim();
 
-      if (label == 'Last' || parameters.contains(':') || href.contains('/page/')) {
-        pageCount = _lastNumber(parameters) ??
-            _lastNumber(href) ??
-            pageCount;
-        if (pageCount > 1) {
-          break;
+      // 纯数字标签（01、02、…、09）。
+      final numeric = int.tryParse(label);
+      if (numeric != null) {
+        if (numeric > pageCount) {
+          pageCount = numeric;
         }
+        continue;
       }
 
-      final numeric = int.tryParse(label);
-      if (numeric != null && numeric > pageCount) {
-        pageCount = numeric;
+      // 「Last」/ `data-parameters` / `/page/` 链接：参数里的数字是页码，
+      // 取全部链接中的最大值（Last 的页码即总页数）。
+      if (label == 'Last' ||
+          parameters.contains(':') ||
+          href.contains('/page/')) {
+        final fromParams = _lastNumber(parameters) ?? _lastNumber(href);
+        if (fromParams != null && fromParams > pageCount) {
+          pageCount = fromParams;
+        }
       }
     }
     return pageCount;
