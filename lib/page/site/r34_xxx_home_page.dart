@@ -8,6 +8,8 @@ import 'package:r34_video/page/component/common/app_state_view.dart';
 import 'package:r34_video/page/component/common/section_header.dart';
 import 'package:r34_video/page/component/common/tag_search_bar.dart';
 import 'package:r34_video/page/site/r34_xxx_detail_page.dart';
+import 'package:r34_video/page/site/r34_xxx_search_options.dart';
+import 'package:r34_video/page/site/r34_xxx_sort_filter_dialog.dart';
 import 'package:r34_video/repo/entity/r34_xxx_post.dart';
 import 'package:r34_video/repo/r34_xxx_repo.dart';
 import 'package:r34_video/repo/r34_xxx_search_history_repo.dart';
@@ -31,13 +33,19 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
   /// 当前已选 tag（原值，下划线形式，如 `ada_wong`）。
   List<String> _tags = const [];
 
-  /// 传给接口的 tag 串。
+  /// 排序 / 筛选条件（只进待提交区，点「搜索」才生效，见 [_onSearchSubmit]）。
+  R34XxxSearchOptions _searchOptions = const R34XxxSearchOptions();
+
+  /// 传给接口的 tag 串（不含排序/筛选伪标签，用于搜索历史）。
   String get _query => TagRules.rule34xxx.joinTags(_tags);
+
+  /// 完整搜索串 = tags + 排序/筛选伪标签（真正发给接口的）。
+  String get _fullQuery => _searchOptions.toTagQuery(_query);
 
   late final AppPagedGridController _grid = AppPagedGridController(
     loader: (page) async {
       final result = await R34XxxRepo.getPosts(
-        tags: _query,
+        tags: _fullQuery,
         page: page - 1, // 接口的 pid 从 0 开始
         limit: R34XxxRepo.defaultLimit,
       );
@@ -114,7 +122,8 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
     setState(() => _tags = next);
   }
 
-  /// 显式搜索（点「搜索」按钮）：按当前所有已选 tag 请求，并记一条搜索历史。
+  /// 显式搜索（点「搜索」按钮）：按当前所有已选 tag + 排序/筛选条件请求，
+  /// 并记一条搜索历史（历史只记 tag，不记排序/筛选）。
   Future<void> _onSearchSubmit() async {
     FocusManager.instance.primaryFocus?.unfocus();
     _recordCurrentSearch();
@@ -245,12 +254,19 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
     );
   }
 
-  /// 结果计数行。
+  /// 打开「排序与筛选」对话框。
   ///
-  /// 当前 tag 条件已经由 [TagSearchBar] 的 chip 列表呈现，这里不再重复，
-  /// 只报总数。
+  /// 只更新待提交区的条件，**不**自动搜索（约定同 tag 编辑，
+  /// 见 [_onSearchSubmit]）。
+  Future<void> _openSortFilter() async {
+    final next = await R34XxxSortFilterDialog.show(context, _searchOptions);
+    if (next != null && mounted && next != _searchOptions) {
+      setState(() => _searchOptions = next);
+    }
+  }
+
+  /// 结果计数行：左侧是「排序/筛选」入口（显示当前条件），右侧报总数。
   Widget _buildQueryBar() {
-    final isEmpty = _query.isEmpty;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.page,
@@ -260,16 +276,35 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
       ),
       child: Row(
         children: [
-          Expanded(
-            child: Text(
-              isEmpty ? '最新投稿' : '筛选结果',
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w500,
-                color: AppColors.textSecondary,
-              ),
+          GestureDetector(
+            onTap: _openSortFilter,
+            behavior: HitTestBehavior.opaque,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(
+                  Icons.tune_rounded,
+                  size: 15,
+                  color: AppColors.textSecondary,
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  _searchOptions.describe(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w500,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                const Icon(
+                  Icons.expand_more_rounded,
+                  size: 15,
+                  color: AppColors.textHint,
+                ),
+              ],
             ),
           ),
           const Spacer(),
@@ -340,7 +375,7 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
     if (posts.isEmpty) {
       return AppStateView.empty(
         title: '这里没有内容',
-        description: _query.isEmpty
+        description: _fullQuery.isEmpty
             ? '接口可能限流了，稍后再试'
             : '换个 tag 试试，多个 tag 用空格分隔',
         actionLabel: '重新加载',
