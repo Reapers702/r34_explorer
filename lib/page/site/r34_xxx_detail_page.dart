@@ -5,6 +5,7 @@ import 'package:r34_video/page/component/common/app_state_view.dart';
 import 'package:r34_video/page/component/common/section_header.dart';
 import 'package:r34_video/page/component/video_tag_chip.dart';
 import 'package:r34_video/repo/entity/r34_xxx_post.dart';
+import 'package:r34_video/repo/local_content_repo.dart';
 import 'package:r34_video/repo/r34_xxx_repo.dart';
 import 'package:r34_video/theme/app_colors.dart';
 import 'package:r34_video/theme/app_dimens.dart';
@@ -32,6 +33,8 @@ class _R34XxxDetailPageState extends State<R34XxxDetailPage> {
 
   List<R34XxxComment>? _comments;
 
+  bool _favorited = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -42,6 +45,27 @@ class _R34XxxDetailPageState extends State<R34XxxDetailPage> {
     if (args is R34XxxDetailPageArgs) {
       _post = args.post;
       _loadComments();
+      _onViewed(args.post);
+    }
+  }
+
+  /// 进入详情即记一条历史，并同步收藏状态。
+  Future<void> _onViewed(R34XxxPost post) async {
+    LocalContentRepo.pushHistory(SavedContent.fromPost(post));
+    final fav = await LocalContentRepo.isFavorite('xxx_${post.id}');
+    if (mounted) {
+      setState(() => _favorited = fav);
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    final post = _post;
+    if (post == null) {
+      return;
+    }
+    final fav = await LocalContentRepo.toggleFavorite(SavedContent.fromPost(post));
+    if (mounted) {
+      setState(() => _favorited = fav);
     }
   }
 
@@ -89,6 +113,18 @@ class _R34XxxDetailPageState extends State<R34XxxDetailPage> {
                 'post #${post.id}',
                 style: const TextStyle(fontSize: 15),
               ),
+              actions: [
+                IconButton(
+                  tooltip: _favorited ? '取消收藏' : '收藏',
+                  onPressed: _toggleFavorite,
+                  icon: Icon(
+                    _favorited
+                        ? Icons.favorite_rounded
+                        : Icons.favorite_border_rounded,
+                    color: _favorited ? AppColors.error : null,
+                  ),
+                ),
+              ],
             ),
       body: _immersive
           ? Stack(

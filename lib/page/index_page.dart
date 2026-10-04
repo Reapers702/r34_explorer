@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:r34_video/constant/tab_enum.dart';
 import 'package:r34_video/page/home_page.dart';
+import 'package:r34_video/page/local_library_page.dart';
 import 'package:r34_video/page/my_info_page.dart';
 import 'package:r34_video/page/site/r34_xxx_home_page.dart';
 import 'package:r34_video/repo/site_registry.dart';
@@ -52,6 +53,7 @@ class _IndexPageState extends State<IndexPage> {
         _site == R34Site.rule34xxx
             ? const R34XxxHomePage()
             : const HomePage(),
+        const LocalLibraryPage(),
         const MyInfoPage(),
       ],
     );

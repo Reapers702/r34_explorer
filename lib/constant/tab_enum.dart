@@ -9,16 +9,19 @@ import 'package:flutter/material.dart';
 /// 这里只负责“有哪几个 tab”。
 enum TabEnum {
   homePage,
+  libraryPage,
   userPage,
 }
 
 class TabConst {
   static const int homeTabIndex = 0;
-  static const int userTabIndex = 1;
+  static const int libraryTabIndex = 1;
+  static const int userTabIndex = 2;
 
   static LinkedHashMap<TabEnum, MapEntry<String, IconData>> tabs =
       LinkedHashMap.from({
     TabEnum.homePage: const MapEntry('首页', Icons.home_outlined),
+    TabEnum.libraryPage: const MapEntry('收藏', Icons.bookmark_outline_rounded),
     TabEnum.userPage: const MapEntry('我的', Icons.person_outline_outlined),
   });
 }

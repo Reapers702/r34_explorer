@@ -9,6 +9,7 @@ import 'package:r34_video/page/component/video_tag_chip.dart';
 import 'package:r34_video/player/player_args.dart';
 import 'package:r34_video/repo/entity/r34_page.dart';
 import 'package:r34_video/repo/entity/r34_video_info.dart';
+import 'package:r34_video/repo/local_content_repo.dart';
 import 'package:r34_video/repo/r34_comment_repo.dart';
 import 'package:r34_video/repo/r34_video_detail_repo.dart';
 import 'package:r34_video/theme/app_colors.dart';
@@ -36,6 +37,8 @@ class _DetailPageState extends State<DetailPage>
   Future<R34VideoInfo?>? _videoFuture;
   Future<List<R34Comment>>? _commentFuture;
 
+  bool _favorited = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -50,6 +53,27 @@ class _DetailPageState extends State<DetailPage>
     _videoFuture =
         R34VideoDetailRepo.getVideoInfo(arguments.r34video.detailUrl);
     _commentFuture = R34CommentRepo.getComments(arguments.r34video.detailUrl);
+    _onViewed(arguments.r34video);
+  }
+
+  /// 进入详情即记一条历史，并同步收藏状态。
+  Future<void> _onViewed(R34Video video) async {
+    LocalContentRepo.pushHistory(SavedContent.fromVideo(video));
+    final fav = await LocalContentRepo.isFavorite(video.detailUrl);
+    if (mounted) {
+      setState(() => _favorited = fav);
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    final video = _args?.r34video;
+    if (video == null) {
+      return;
+    }
+    final fav = await LocalContentRepo.toggleFavorite(SavedContent.fromVideo(video));
+    if (mounted) {
+      setState(() => _favorited = fav);
+    }
   }
 
   @override
@@ -102,6 +126,16 @@ class _DetailPageState extends State<DetailPage>
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        actions: [
+          IconButton(
+            tooltip: _favorited ? '取消收藏' : '收藏',
+            onPressed: _toggleFavorite,
+            icon: Icon(
+              _favorited ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              color: _favorited ? AppColors.error : null,
+            ),
+          ),
+        ],
       ),
       body: FutureBuilder<R34VideoInfo?>(
         future: _videoFuture,
