@@ -12,7 +12,6 @@ import 'package:r34_video/util/app_image_cache.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
   // 图片缓存：替换掉会在受限环境下抛
   // PathAccessException（getApplicationSupportDirectory）的默认实现。
   // 必须在任何 CachedNetworkImage 渲染前完成。
