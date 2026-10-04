@@ -177,6 +177,27 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                             .toList(),
                       ),
                     ),
+                    const SectionHeader(
+                      title: '其它',
+                      padding: EdgeInsets.fromLTRB(
+                        AppSpacing.lg,
+                        AppSpacing.lg,
+                        AppSpacing.lg,
+                        AppSpacing.sm,
+                      ),
+                    ),
+                    Padding(
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
+                      child: AppChip.text(
+                        '认证上传者',
+                        selected: _draft.verifiedUploaders,
+                        onTap: () => _update(
+                          (draft) =>
+                              draft.verifiedUploaders = !draft.verifiedUploaders,
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),

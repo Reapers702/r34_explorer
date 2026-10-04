@@ -9,6 +9,7 @@ enum HomeSortEnum {
   topRated,
   longest,
   mostRelevant,
+  random,
   ;
 
   static final descriptionMap = LinkedHashMap.of({
@@ -16,6 +17,7 @@ enum HomeSortEnum {
     '评分最高': topRated,
     '最新发布': newest,
     '时长最久': longest,
+    '随机': random,
   });
 
   static final descriptionMapWithSearch =
@@ -28,6 +30,7 @@ enum HomeSortEnum {
       topRated: 'rating',
       longest: 'duration',
       mostRelevant: '',
+      random: 'pseudo_rand',
     }[this]!;
   }
 
@@ -37,6 +40,7 @@ enum HomeSortEnum {
         topRated: '评分最高',
         longest: '时长最久',
         mostRelevant: '最符合',
+        random: '随机',
       }[this]!;
 }
 
@@ -128,7 +132,7 @@ enum VideoDateAdded {
       .key;
 }
 
-/// 一次「筛选条件」的完整描述：排序 + 时长 + 上传时间。
+/// 一次「筛选条件」的完整描述：排序 + 时长 + 上传时间 + 认证上传者。
 ///
 /// 首页和搜索结果页用的是同一套筛选条件，之前两处各写一份、还只实现了排序，
 /// 现在统一到这里，页面只负责渲染和回调。
@@ -136,6 +140,9 @@ class FilterSelection {
   HomeSortEnum sortType;
   VideoDuration duration;
   VideoDateAdded dateAdded;
+
+  /// 只显示认证上传者（站点复选框 `flag2`）。
+  bool verifiedUploaders;
 
   /// 自定义时长区间，单位秒，仅 [VideoDuration.custom] 时生效。
   int? customFromSeconds;
@@ -145,6 +152,7 @@ class FilterSelection {
     this.sortType = HomeSortEnum.mostViewed,
     this.duration = VideoDuration.all,
     this.dateAdded = VideoDateAdded.all,
+    this.verifiedUploaders = false,
     this.customFromSeconds,
     this.customToSeconds,
   });
@@ -182,12 +190,17 @@ class FilterSelection {
     if (dateAdded.days != null) {
       params['post_date_from'] = dateAdded.days!;
     }
+    if (verifiedUploaders) {
+      params['flag2'] = '1';
+    }
     return params;
   }
 
-  /// 时长/上传时间是否被限制过。
+  /// 时长/上传时间/认证上传者是否被限制过。
   bool get hasSecondaryFilter =>
-      durationRange != null || dateAdded != VideoDateAdded.all;
+      durationRange != null ||
+      dateAdded != VideoDateAdded.all ||
+      verifiedUploaders;
 
   /// 是否有自定义时长区间。
   bool get isCustomDuration =>
@@ -206,6 +219,9 @@ class FilterSelection {
     }
     if (dateAdded != VideoDateAdded.all) {
       labels.add(dateAdded.desc);
+    }
+    if (verifiedUploaders) {
+      labels.add('认证上传者');
     }
     return labels;
   }
@@ -231,6 +247,7 @@ class FilterSelection {
       sortType: sortType,
       duration: duration,
       dateAdded: dateAdded,
+      verifiedUploaders: verifiedUploaders,
       customFromSeconds: customFromSeconds,
       customToSeconds: customToSeconds,
     );
@@ -244,6 +261,7 @@ class FilterSelection {
     return sortType == other.sortType &&
         duration == other.duration &&
         dateAdded == other.dateAdded &&
+        verifiedUploaders == other.verifiedUploaders &&
         customFromSeconds == other.customFromSeconds &&
         customToSeconds == other.customToSeconds;
   }
@@ -252,6 +270,7 @@ class FilterSelection {
     HomeSortEnum? sortType,
     VideoDuration? duration,
     VideoDateAdded? dateAdded,
+    bool? verifiedUploaders,
     int? customFromSeconds,
     int? customToSeconds,
     bool clearCustomDuration = false,
@@ -260,6 +279,7 @@ class FilterSelection {
       sortType: sortType ?? this.sortType,
       duration: duration ?? this.duration,
       dateAdded: dateAdded ?? this.dateAdded,
+      verifiedUploaders: verifiedUploaders ?? this.verifiedUploaders,
       customFromSeconds:
           clearCustomDuration ? null : (customFromSeconds ?? this.customFromSeconds),
       customToSeconds:
@@ -270,6 +290,7 @@ class FilterSelection {
   @override
   String toString() {
     return 'FilterSelection(sort: ${sortType.name}, duration: ${duration.name}, '
-        'dateAdded: ${dateAdded.name}, custom: $customFromSeconds-$customToSeconds)';
+        'dateAdded: ${dateAdded.name}, verified: $verifiedUploaders, '
+        'custom: $customFromSeconds-$customToSeconds)';
   }
 }

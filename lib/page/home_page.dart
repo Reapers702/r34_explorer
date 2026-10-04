@@ -96,17 +96,6 @@ class _HomePageState extends State<HomePage>
     await _reload();
   }
 
-  Future<void> _clearSecondaryFilter() async {
-    setState(() {
-      filter = filter.copyWith(
-        duration: VideoDuration.all,
-        dateAdded: VideoDateAdded.all,
-        clearCustomDuration: true,
-      );
-    });
-    await _reload();
-  }
-
   Future<void> _showPageSwitcher() async {
     final controller = TextEditingController();
     final target = await showDialog<int>(
@@ -213,8 +202,6 @@ class _HomePageState extends State<HomePage>
                     selection: filter,
                     sortOptions: HomeSortEnum.descriptionMap,
                     onSortSelected: _onSortSelected,
-                    onOpenFilter: _openFilter,
-                    onClearSecondary: _clearSecondaryFilter,
                   ),
                   const Divider(height: 1),
                 ],

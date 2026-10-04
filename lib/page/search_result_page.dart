@@ -162,17 +162,6 @@ class _SearchResultPageState extends State<SearchResultPage> {
     await _reload();
   }
 
-  Future<void> _clearSecondaryFilter() async {
-    setState(() {
-      _search.filter = _search.filter.copyWith(
-        duration: VideoDuration.all,
-        dateAdded: VideoDateAdded.all,
-        clearCustomDuration: true,
-      );
-    });
-    await _reload();
-  }
-
   Future<void> _showPageSwitcher() async {
     final controller = TextEditingController();
     final target = await showDialog<int>(
@@ -257,8 +246,6 @@ class _SearchResultPageState extends State<SearchResultPage> {
                   selection: _search.filter,
                   sortOptions: _sortOptions,
                   onSortSelected: _onSortSelected,
-                  onOpenFilter: _openFilter,
-                  onClearSecondary: _clearSecondaryFilter,
                 ),
                 const Divider(height: 1),
               ],
