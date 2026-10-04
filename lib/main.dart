@@ -8,9 +8,15 @@ import 'package:r34_video/provider/settings_provider.dart';
 import 'package:r34_video/repo/cookie_store.dart';
 import 'package:r34_video/repo/site_registry.dart';
 import 'package:r34_video/theme/app_theme.dart';
+import 'package:r34_video/util/app_image_cache.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // 图片缓存：替换掉会在受限环境下抛
+  // PathAccessException（getApplicationSupportDirectory）的默认实现。
+  // 必须在任何 CachedNetworkImage 渲染前完成。
+  AppImageCache.ensureInitialized();
 
   // package:media_kit 的初始化，必须在 runApp 之前完成。
   MediaKit.ensureInitialized();
