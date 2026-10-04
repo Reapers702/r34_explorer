@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
@@ -5,10 +7,12 @@ import 'package:r34_video/constant/page_routes.dart';
 import 'package:r34_video/page/component/common/app_paged_grid_controller.dart';
 import 'package:r34_video/page/component/common/app_search_bar.dart';
 import 'package:r34_video/page/component/common/app_state_view.dart';
+import 'package:r34_video/page/component/common/section_header.dart';
 import 'package:r34_video/page/component/common/tag_search_bar.dart';
 import 'package:r34_video/page/site/r34_xxx_detail_page.dart';
 import 'package:r34_video/repo/entity/r34_xxx_post.dart';
 import 'package:r34_video/repo/r34_xxx_repo.dart';
+import 'package:r34_video/repo/r34_xxx_search_history_repo.dart';
 import 'package:r34_video/repo/site_registry.dart';
 import 'package:r34_video/theme/app_colors.dart';
 import 'package:r34_video/theme/app_dimens.dart';
@@ -48,6 +52,12 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
 
   int _total = -1;
 
+  /// 最近 tag 搜索历史（本地），下拉历史里点击可再次搜索。
+  List<String> _searchHistory = const [];
+
+  /// 防抖：输入停顿 800ms 且当前有内容时记一条搜索历史，避免记录每次中间输入。
+  Timer? _historyDebounce;
+
   int _pageCountOf(R34XxxPage result) {
     if (result.posts.isEmpty) {
       return 1;
@@ -64,6 +74,7 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
   void initState() {
     super.initState();
     _grid.addListener(_onGridChanged);
+    _loadSearchHistory();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _grid.loadPage(1);
@@ -71,8 +82,16 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
     });
   }
 
+  Future<void> _loadSearchHistory() async {
+    final history = await R34XxxSearchHistoryRepo.getHistory();
+    if (mounted && history.isNotEmpty) {
+      setState(() => _searchHistory = history);
+    }
+  }
+
   @override
   void dispose() {
+    _historyDebounce?.cancel();
     _grid.removeListener(_onGridChanged);
     _grid.dispose();
     super.dispose();
@@ -93,7 +112,48 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
       return;
     }
     setState(() => _tags = next);
+    _scheduleHistoryRecord();
     await _grid.reset();
+  }
+
+  /// 输入停顿后记一条搜索历史（有实际内容时）。
+  void _scheduleHistoryRecord() {
+    _historyDebounce?.cancel();
+    _historyDebounce = Timer(const Duration(milliseconds: 800), () async {
+      final query = _query;
+      if (query.isEmpty) {
+        return;
+      }
+      await R34XxxSearchHistoryRepo.addSearchHistory(query);
+      final history = await R34XxxSearchHistoryRepo.getHistory();
+      if (mounted) {
+        setState(() => _searchHistory = history);
+      }
+    });
+  }
+
+  /// 点击「最近 tag」里的某一项：用它重新搜索。
+  Future<void> _applyTags(String tags) async {
+    final next =
+        tags.trim().isEmpty ? const <String>[] : tags.trim().split(' ');
+    setState(() => _tags = next);
+    _historyDebounce?.cancel();
+    await _grid.reset();
+  }
+
+  Future<void> _removeHistory(String tags) async {
+    await R34XxxSearchHistoryRepo.removeSearchHistory(tags);
+    final history = await R34XxxSearchHistoryRepo.getHistory();
+    if (mounted) {
+      setState(() => _searchHistory = history);
+    }
+  }
+
+  Future<void> _clearSearchHistory() async {
+    await R34XxxSearchHistoryRepo.clearSearchHistory();
+    if (mounted) {
+      setState(() => _searchHistory = const []);
+    }
   }
 
   /// 联想：走官方 `autocomplete.php`（无需鉴权）。
@@ -156,6 +216,7 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
                     ),
                   ),
                   _buildQueryBar(),
+                  if (_searchHistory.isNotEmpty) _buildHistoryBar(),
                 ],
               ),
             ),
@@ -194,6 +255,44 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
           Text(
             _total >= 0 ? '$_total 条' : '—',
             style: const TextStyle(fontSize: 12, color: AppColors.textHint),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 「最近 tag」横滑条：点击即搜，单条可删，尾部可清空。
+  Widget _buildHistoryBar() {
+    return SizedBox(
+      height: 34,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.page,
+          0,
+          AppSpacing.page,
+          AppSpacing.sm,
+        ),
+        children: [
+          ..._searchHistory.map(
+            (entry) => Padding(
+              padding: const EdgeInsets.only(right: AppSpacing.sm),
+              child: AppChip.text(
+                entry,
+                onTap: () => _applyTags(entry),
+                onDeleted: () => _removeHistory(entry),
+              ),
+            ),
+          ),
+          AppChip.text(
+            '清空',
+            fontSize: 12,
+            leading: const Icon(
+              Icons.clear_all_rounded,
+              size: 14,
+              color: AppColors.textHint,
+            ),
+            onTap: _clearSearchHistory,
           ),
         ],
       ),
