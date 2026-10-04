@@ -102,6 +102,77 @@ class R34XxxRepo {
     }
   }
 
+  /// tag 联想（站点自己用的那套）。
+  ///
+  /// 走官方 `autocomplete.php` —— 它**不需要鉴权**（跟 `/index.php?page=dapi` 不同）。
+  /// 返回形如：
+  /// ```json
+  /// [{"label":"ada_wong (23076)","value":"ada_wong"}]
+  /// ```
+  /// [label] 带使用量用于展示，[value] 才是真正的 tag。
+  ///
+  /// 注意 booru 规范：**tag 内部用下划线**，空格是 tag 之间的分隔符。
+  /// 所以 `q=ada w` 不会命中，`q=ada_w` 才行 —— 输入时要把空格换成下划线。
+  static Future<List<R34XxxTagSuggestion>> autocomplete(
+    String query, {
+    int limit = 10,
+  }) async {
+    final keyword = normalizeTagQuery(query);
+    if (keyword.isEmpty) {
+      return const [];
+    }
+
+    final uri = Uri.https('api.rule34.xxx', '/autocomplete.php', {'q': keyword});
+
+    try {
+      final res = await http
+          .get(uri, headers: const {'accept': 'application/json'})
+          .timeout(const Duration(seconds: 12));
+      if (res.statusCode != 200) {
+        return const [];
+      }
+
+      final dynamic decoded = jsonDecode(res.body);
+      if (decoded is! List) {
+        return const [];
+      }
+
+      final result = <R34XxxTagSuggestion>[];
+      for (final item in decoded) {
+        if (item is! Map) {
+          continue;
+        }
+        final value = '${item['value'] ?? ''}'.trim();
+        if (value.isEmpty) {
+          continue;
+        }
+        result.add(R34XxxTagSuggestion(
+          value: value,
+          label: '${item['label'] ?? value}'.trim(),
+        ));
+        if (result.length >= limit) {
+          break;
+        }
+      }
+      return result;
+    } catch (e) {
+      // 联想失败不该打扰用户，静默返回空即可。
+      LogUtil.warn('r34xxx autocomplete failed: $e');
+      return const [];
+    }
+  }
+
+  /// 把用户输入规整成合法 tag：空格/连字符换成下划线，去掉多余字符。
+  ///
+  /// 这样用户直接打 "ada wong" 也能命中站点上的 `ada_wong`。
+  static String normalizeTagQuery(String raw) {
+    return raw
+        .trim()
+        .replaceAll(RegExp(r'[\s\-]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), '');
+  }
+
   /// 帖子评论。
   ///
   /// 代理的这个端点基本只返回空数组（站点评论本来就少），保留是为了
@@ -165,4 +236,21 @@ class R34XxxComment {
     required this.body,
     this.createdAt = '',
   });
+}
+
+/// tag 联想的一条结果。
+class R34XxxTagSuggestion {
+  /// 真正的 tag（可直接用于搜索），例如 `ada_wong`。
+  final String value;
+
+  /// 展示用文案，通常带使用量，例如 `ada_wong (23076)`。
+  final String label;
+
+  const R34XxxTagSuggestion({required this.value, required this.label});
+
+  /// 站点展示时会把下划线换成空格，这里保持一致。
+  String get displayName => value.replaceAll('_', ' ');
+
+  @override
+  String toString() => 'R34XxxTagSuggestion($value / $label)';
 }

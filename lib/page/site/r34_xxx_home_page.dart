@@ -1,11 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:r34_video/constant/page_routes.dart';
 import 'package:r34_video/page/component/common/app_paged_grid_controller.dart';
 import 'package:r34_video/page/component/common/app_search_bar.dart';
 import 'package:r34_video/page/component/common/app_state_view.dart';
-import 'package:r34_video/page/component/common/section_header.dart';
 import 'package:r34_video/page/site/r34_xxx_detail_page.dart';
+import 'package:r34_video/page/site/tag_search_bar.dart';
 import 'package:r34_video/repo/entity/r34_xxx_post.dart';
 import 'package:r34_video/repo/r34_xxx_repo.dart';
 import 'package:r34_video/repo/site_registry.dart';
@@ -25,10 +26,11 @@ class R34XxxHomePage extends StatefulWidget {
 
 class _R34XxxHomePageState extends State<R34XxxHomePage>
     with AutomaticKeepAliveClientMixin {
-  final TextEditingController _searchController = TextEditingController();
+  /// 当前已选 tag（原值，下划线形式，如 `ada_wong`）。
+  List<String> _tags = const [];
 
-  /// 当前查询的 tag 串。
-  String _query = '';
+  /// 传给接口的 tag 串。
+  String get _query => TagSearchBar.joinTags(_tags);
 
   late final AppPagedGridController _grid = AppPagedGridController(
     loader: (page) async {
@@ -73,7 +75,6 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
   void dispose() {
     _grid.removeListener(_onGridChanged);
     _grid.dispose();
-    _searchController.dispose();
     super.dispose();
   }
 
@@ -83,12 +84,15 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
     }
   }
 
-  Future<void> _submit(String raw) async {
-    final text = raw.trim();
-    if (text == _query) {
+  /// tag 条件变化（增 / 删 / 清空）：回到第一页重新拉。
+  Future<void> _onTagsChanged(String tags) async {
+    final next = tags.trim().isEmpty
+        ? const <String>[]
+        : tags.trim().split(' ');
+    if (listEquals(next, _tags)) {
       return;
     }
-    setState(() => _query = text);
+    setState(() => _tags = next);
     await _grid.reset();
   }
 
@@ -108,29 +112,28 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  AppToolbar(
-                    searchBar: AppSearchBar(
-                      controller: _searchController,
-                      hintText: '搜 tag，例如 cat solo',
-                      onSubmitted: _submit,
-                      onClear: () {
-                        _searchController.clear();
-                        _submit('');
-                      },
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: AppSpacing.page,
                     ),
-                    actions: [
-                      AppToolbarAction(
-                        icon: Icons.swap_horiz_rounded,
-                        tooltip:
-                            '切换站点（当前 ${SiteRegistry.instance.current.displayName}）',
-                        onPressed: () => showSiteSwitcher(context),
-                      ),
-                      AppToolbarAction(
-                        icon: Icons.search_rounded,
-                        tooltip: '搜索',
-                        onPressed: () => _submit(_searchController.text),
-                      ),
-                    ],
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TagSearchBar(
+                            selectedTags: _tags,
+                            onChanged: _onTagsChanged,
+                          ),
+                        ),
+                        const SizedBox(width: AppSpacing.xs),
+                        AppToolbarAction(
+                          icon: Icons.swap_horiz_rounded,
+                          tooltip:
+                              '切换站点（当前 ${SiteRegistry.instance.current.displayName}）',
+                          onPressed: () => showSiteSwitcher(context),
+                        ),
+                      ],
+                    ),
                   ),
                   _buildQueryBar(),
                 ],
@@ -144,25 +147,27 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
     );
   }
 
+  /// 结果计数行。
+  ///
+  /// 当前 tag 条件已经由 [TagSearchBar] 的 chip 列表呈现，这里不再重复，
+  /// 只报总数。
   Widget _buildQueryBar() {
-    final label = _query.isEmpty ? '最新投稿' : _query;
+    final isEmpty = _query.isEmpty;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.page,
-        AppSpacing.xs,
+        AppSpacing.sm,
         AppSpacing.page,
         AppSpacing.sm,
       ),
       child: Row(
         children: [
-          AppChip.text(
-            label,
-            selected: _query.isNotEmpty,
-            fontSize: 12,
-            leading: const Icon(
-              Icons.tag_rounded,
-              size: 13,
-              color: AppColors.textHint,
+          Text(
+            isEmpty ? '最新投稿' : '筛选结果',
+            style: const TextStyle(
+              fontSize: 12.5,
+              fontWeight: FontWeight.w500,
+              color: AppColors.textSecondary,
             ),
           ),
           const Spacer(),

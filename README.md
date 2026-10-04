@@ -43,6 +43,20 @@ GET https://rule34-api.netlify.app/count?tags=...                          → 2
 也就是说 kurosearch 前端 → `rule34-api.netlify.app`（`kurozenzen/kurosearch` 作者的公开托管），
 它自己不是数据源。本 App 直接用了同一条接口 —— **没有经过 kurosearch 或 r34.app 的页面/前端**。
 
+### 备选数据源（将来可能要换）
+
+如果这条公开接口限流或下线，可考虑的替代：
+
+| 来源 | 说明 | 备注 |
+|---|---|---|
+| **`rule34-api.netlify.app`** | **当前使用**。kurosearch 背后的公开聚合接口 | 无鉴权；`/posts`、`/count`、`/comments` |
+| **`api.rule34.xxx`（官方）** | 官方 API，最稳 | **强制 `user_id` + `api_key`**，一人一 key；拿到后改 `_baseUrl` 即可切换 |
+| [`r34.app`](https://r34.app/) | 同类的 Rule34 浏览站，自带 App | 其 [Rule-34/API](https://github.com/Rule-34/API) 文档写明「仅供 Rule 34 App 使用」、无公开文档，故未采用 |
+| [`kurosearch.com`](https://kurosearch.com/) | 开源图站（[源码](https://github.com/kurozenzen/kurosearch)），无需登录 | 同上的接口来源方；站点本身可作参考实现 |
+| `api-cdn.rule34.xxx` | 图片 CDN | 与接口无关，可直连 |
+
+切换方式：改 `lib/repo/r34_xxx_repo.dart` 里的 `_baseUrl`，或按官方 API 的参数形态调整该方法。
+
 ### 用到的端点
 
 | 端点 | 用途 | 备注 |
@@ -50,11 +64,27 @@ GET https://rule34-api.netlify.app/count?tags=...                          → 2
 | `/posts?limit=&pid=&tags=` | 拉投稿 | `pid` 从 **0** 开始；返回 JSON 数组 |
 | `/count?tags=` | 命中总数 | 返回 `<posts count="..." />` |
 | `/comments?post_id=` | 评论 | 实测基本返回空数组，保留是为了将来换官方 API 时不用改调用方 |
+| `api.rule34.xxx/autocomplete.php?q=` | **tag 联想** | **不需要鉴权**（与 `/dapi` 不同），站点自己用的就是它 |
 
 单条投稿的字段：`preview_url` / `sample_url` / `file_url` / `width` / `height` /
 `rating`（`explicit`·`questionable`·`safe`）/ `score` / `owner` / `tags`（空格分隔）/ `change`。
 
 图片 CDN 是 `api-cdn.rule34.xxx`，可直连，不需要额外鉴权。
+
+### tag 搜索的两个细节（容易踩）
+
+1. **tag 内部用下划线，空格是 tag 之间的分隔符。**
+   站点上的 `ada wong` 在数据里是 `ada_wong`；查询 `q=ada w` 会返回空
+   （`q=ada_w` 才命中）。
+   因此输入框会把用户打的空格/连字符规整为下划线
+   （`R34XxxRepo.normalizeTagQuery`），所以「ada wong」这种带空格的 tag 可以直接打。
+
+2. **已选 tag 可见 + 输入联想。**
+   `lib/page/site/tag_search_bar.dart` 提供：
+   * 选中/排除的 tag 以可删除 chip 列出，和站点一样一眼看清当前条件；
+   * 输入时走官方 `autocomplete.php` 给候选，候选项带使用量
+     （如 `ada wong (23076)`），展示时把下划线还原成空格；
+   * `-tag` 表示排除，符合 booru 语法。
 
 ### 代价与将来替换
 
@@ -123,6 +153,9 @@ lib/
 │   ├── component/      可复用组件
 │   │   └── common/     设计系统级通用件（状态视图/骨架屏/搜索框/筛选条/分页控制器…）
 │   ├── site/           rule34.xxx 专属页面（图片站，独立一整套）
+│   │   ├── r34_xxx_home_page      标签搜索 + 网格
+│   │   ├── r34_xxx_detail_page    看图（sample/原图、缩放、沉浸）
+│   │   └── tag_search_bar         已选 tag chip + 输入联想
 │   ├── *.dart          rule34video 相关页面（首页/搜索/详情…）
 │   └── settings_page   设置；cookie_settings_page  Cookie 与登录
 ├── player/             内置播放器（R34PlayerController 封装内核 + PlayerPage）
