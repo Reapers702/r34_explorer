@@ -14,12 +14,32 @@ import 'package:r34_video/theme/app_colors.dart';
 /// 搜索结果页参数。
 ///
 /// 前缀约定：`t:` tag、`c:` 分类、`a:` 创作者，其它一律当关键词。
+/// 附加条件（[tagIds] / [artistIds] / [categoryIds] / [blacklistTokens]）
+/// 只在关键词搜索时随请求下发，对齐原站搜索表单。
 class SearchResultPageArgs {
   final String rawText;
   late final String searchText;
   late final SearchKeywordType keywordType;
 
-  SearchResultPageArgs(this.rawText) {
+  /// 附加 tag id（对应请求参数 `tag_ids`）。
+  final List<String> tagIds;
+
+  /// 附加创作者 id（对应请求参数 `model_ids`）。
+  final List<String> artistIds;
+
+  /// 附加分类 id（对应请求参数 `category_ids`）。
+  final List<String> categoryIds;
+
+  /// 屏蔽 token（对应请求参数 `temp_skip_items`），形如 `tag:51`。
+  final List<String> blacklistTokens;
+
+  SearchResultPageArgs(
+    this.rawText, {
+    this.tagIds = const [],
+    this.artistIds = const [],
+    this.categoryIds = const [],
+    this.blacklistTokens = const [],
+  }) {
     if (rawText.startsWith('t:')) {
       searchText = rawText.substring(2);
       keywordType = SearchKeywordType.tag;
@@ -53,6 +73,10 @@ class SearchResultPageArgs {
     return {
       'searchText': searchText,
       'keywordType': keywordType.name,
+      'tagIds': tagIds,
+      'artistIds': artistIds,
+      'categoryIds': categoryIds,
+      'blacklistTokens': blacklistTokens,
     };
   }
 }
@@ -99,6 +123,10 @@ class _SearchResultPageState extends State<SearchResultPage> {
     _search = R34SearchRequest(
       keywordType: _args!.keywordType,
       keyword: _args!.searchText,
+      tagIds: _args!.tagIds,
+      artistIds: _args!.artistIds,
+      categoryIds: _args!.categoryIds,
+      blacklistTokens: _args!.blacklistTokens,
     );
 
     WidgetsBinding.instance.addPostFrameCallback((_) {

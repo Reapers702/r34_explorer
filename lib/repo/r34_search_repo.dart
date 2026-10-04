@@ -37,26 +37,9 @@ class R34SearchRepo {
         ParseType.searchKeyword;
 
     final path = _pathOf(request);
-    final pageToken = request.page.toString().padLeft(2, '0');
 
-    final query = <String, String>{
-      'mode': 'async',
-      'function': 'get_block',
-      'block_id': _blockIdMap[request.keywordType] ?? '',
-      'sort_by': request.sortType.officialTag,
-      // 时长 / 上传时间筛选。
-      ...request.filter.queryParams,
-      '_': '${DateTime.now().millisecondsSinceEpoch}',
-    };
-
-    // 关键词搜索用 search 页面自己的分页参数，分类页用 `from`。
-    if (request.keywordType == SearchKeywordType.keyword) {
-      query['q'] = request.keyword;
-      query['from_videos'] = pageToken;
-      query['from_albums'] = pageToken;
-    } else {
-      query['from'] = pageToken;
-    }
+    final query = buildSearchQuery(request)
+      ..['_'] = '${DateTime.now().millisecondsSinceEpoch}';
 
     final uri = Uri.https(R34Const.host, path, query);
 
@@ -76,6 +59,50 @@ class R34SearchRepo {
     }
   }
 
+  /// 组装搜索接口的 query 参数（纯函数，便于单元测试）。
+  ///
+  /// 对齐原站搜索表单：
+  /// * `tag_ids` / `category_ids` 带 `all,` 前缀（多选时 `all,` 表示不限定主分类）；
+  /// * `model_ids` 是创作者 id 直接拼接；
+  /// * `temp_skip_items` 是屏蔽列表 token（`tag:<id>` / `cat:<id>` / `model:<id>`）。
+  /// 附加条件只在 [SearchKeywordType.keyword] 时下发，分类页照旧用 `from`。
+  static Map<String, String> buildSearchQuery(R34SearchRequest request) {
+    final pageToken = request.page.toString().padLeft(2, '0');
+
+    final query = <String, String>{
+      'mode': 'async',
+      'function': 'get_block',
+      'block_id': _blockIdMap[request.keywordType] ?? '',
+      'sort_by': request.sortType.officialTag,
+      // 时长 / 上传时间筛选。
+      ...request.filter.queryParams,
+    };
+
+    // 关键词搜索用 search 页面自己的分页参数，分类页用 `from`。
+    if (request.keywordType == SearchKeywordType.keyword) {
+      query['q'] = request.keyword;
+      query['from_videos'] = pageToken;
+      query['from_albums'] = pageToken;
+
+      if (request.tagIds.isNotEmpty) {
+        query['tag_ids'] = 'all,${request.tagIds.join(',')}';
+      }
+      if (request.artistIds.isNotEmpty) {
+        query['model_ids'] = request.artistIds.join(',');
+      }
+      if (request.categoryIds.isNotEmpty) {
+        query['category_ids'] = 'all,${request.categoryIds.join(',')}';
+      }
+      if (request.blacklistTokens.isNotEmpty) {
+        query['temp_skip_items'] = request.blacklistTokens.join(',');
+      }
+    } else {
+      query['from'] = pageToken;
+    }
+
+    return query;
+  }
+
   /// tag 联想。
   ///
   /// 站点搜索框自己用的就是这个端点：`/tags_json.php?id=true&advanced_search=true&q=`。
@@ -87,8 +114,155 @@ class R34SearchRepo {
   /// ```
   /// 注意本站在 tag 里**保留空格**（`ada wong (resident evil)`），
   /// 与 rule34.xxx 相反；搜索时把 `title` 原样当作关键词即可（实测能精确命中）。
-  static Future<List<R34VideoTagSuggestion>> autocompleteTags(
+  static Future<List<R34VideoAutocompleteItem>> autocompleteTags(
     String query, {
+    int limit = 10,
+  }) {
+    return _autocomplete(
+      '/tags_json.php',
+      query,
+      extra: const {'id': 'true', 'advanced_search': 'true'},
+      limit: limit,
+    );
+  }
+
+  /// 创作者联想，站点端点 `/models_json.php?q=`（无 advanced_search）。
+  static Future<List<R34VideoAutocompleteItem>> autocompleteArtists(
+    String query, {
+    int limit = 10,
+  }) {
+    return _autocomplete('/models_json.php', query, limit: limit);
+  }
+
+  /// 分类联想，站点端点 `/categories_json.php?q=`（无 advanced_search）。
+  static Future<List<R34VideoAutocompleteItem>> autocompleteCategories(
+    String query, {
+    int limit = 10,
+  }) {
+    return _autocomplete('/categories_json.php', query, limit: limit);
+  }
+
+  /// 屏蔽（temp blacklist）联想：tag / 分类 / 创作者三个端点各取若干条合并，
+  /// 对齐原站搜索框的 temp blacklist 下拉。
+  static Future<List<R34BlacklistSuggestion>> autocompleteBlacklist(
+    String query, {
+    int perSource = 5,
+  }) async {
+    final keyword = query.trim();
+    if (keyword.isEmpty) {
+      return const [];
+    }
+
+    final results = await Future.wait([
+      _autocomplete(
+        '/tags_json.php',
+        keyword,
+        extra: const {'id': 'true'},
+        limit: perSource,
+      ),
+      _autocomplete('/categories_json.php', keyword, limit: perSource),
+      _autocomplete('/models_json.php', keyword, limit: perSource),
+    ]);
+
+    final list = <R34BlacklistSuggestion>[];
+    for (final item in results[0]) {
+      final token = toBlacklistToken('tag', item.id);
+      if (token != null) {
+        list.add(R34BlacklistSuggestion(
+          typeLabel: 'Tag',
+          name: item.title,
+          token: token,
+        ));
+      }
+    }
+    for (final item in results[1]) {
+      final token = toBlacklistToken('cat', item.id);
+      if (token != null) {
+        list.add(R34BlacklistSuggestion(
+          typeLabel: '分类',
+          name: item.title,
+          token: token,
+        ));
+      }
+    }
+    for (final item in results[2]) {
+      final token = toBlacklistToken('model', item.id);
+      if (token != null) {
+        list.add(R34BlacklistSuggestion(
+          typeLabel: '创作者',
+          name: item.title,
+          token: token,
+        ));
+      }
+    }
+    return list;
+  }
+
+  /// 把联想项的 id 转成 blacklist token。
+  ///
+  /// 原站 JS 只认**纯数字 id**，非数字的丢弃（`initTempBlacklistSelect` 同款校验）。
+  static String? toBlacklistToken(String typePrefix, String id) {
+    if (!RegExp(r'^\d+$').hasMatch(id)) {
+      return null;
+    }
+    return '$typePrefix:$id';
+  }
+
+  /// 解析联想 JSON body → 通用联想项列表。
+  ///
+  /// 三个端点的响应结构略有差异，id / 名称的键名按站点 JS 的顺序回退：
+  /// id 取 `id || category_id || model_id || tag_id`，
+  /// 名称取 `title || tag || name`。无结果时站点返回 `"items":""`，一并兜住。
+  static List<R34VideoAutocompleteItem> parseAutocompleteItems(
+    String body, {
+    int limit = 100,
+  }) {
+    final dynamic decoded;
+    try {
+      decoded = jsonDecode(body);
+    } catch (_) {
+      return const [];
+    }
+    if (decoded is! Map || decoded['items'] is! List) {
+      return const [];
+    }
+
+    final result = <R34VideoAutocompleteItem>[];
+    for (final item in decoded['items'] as List) {
+      if (item is! Map) {
+        continue;
+      }
+      final id = _firstNonEmpty(item, const ['id', 'category_id', 'model_id', 'tag_id']);
+      final title = _firstNonEmpty(item, const ['title', 'tag', 'name']);
+      if (id.isEmpty || title.isEmpty) {
+        continue;
+      }
+      result.add(R34VideoAutocompleteItem(
+        id: id,
+        title: title,
+        total: '${item['total'] ?? ''}',
+      ));
+      if (result.length >= limit) {
+        break;
+      }
+    }
+    return result;
+  }
+
+  static String _firstNonEmpty(Map item, List<String> keys) {
+    for (final key in keys) {
+      final value = item[key];
+      if (value != null && '$value'.trim().isNotEmpty) {
+        return '$value'.trim();
+      }
+    }
+    return '';
+  }
+
+  static Future<List<R34VideoAutocompleteItem>> _autocomplete(
+    String path,
+    String query, {
+    Map<String, String> extra = const {},
     int limit = 10,
   }) async {
     final keyword = query.trim();
@@ -96,46 +270,17 @@ class R34SearchRepo {
       return const [];
     }
 
-    final uri = Uri.https(R34Const.host, '/tags_json.php', {
-      'id': 'true',
-      'advanced_search': 'true',
-      'q': keyword,
-    });
+    final uri = Uri.https(R34Const.host, path, {'q': keyword, ...extra});
 
     try {
       final res = await R34Client.instance.get(uri);
       if (res.statusCode != 200) {
         return const [];
       }
-
-      final dynamic decoded = jsonDecode(res.body);
-      if (decoded is! Map || decoded['items'] is! List) {
-        // 无结果时站点返回 "items":"" 而不是数组，这里一并兜住。
-        return const [];
-      }
-
-      final result = <R34VideoTagSuggestion>[];
-      for (final item in decoded['items'] as List) {
-        if (item is! Map) {
-          continue;
-        }
-        final title = '${item['title'] ?? ''}'.trim();
-        if (title.isEmpty) {
-          continue;
-        }
-        result.add(R34VideoTagSuggestion(
-          title: title,
-          id: '${item['id'] ?? ''}',
-          total: '${item['total'] ?? ''}',
-        ));
-        if (result.length >= limit) {
-          break;
-        }
-      }
-      return result;
+      return parseAutocompleteItems(res.body, limit: limit);
     } catch (e) {
       // 联想失败静默处理，不打扰用户输入。
-      LogUtil.warn('rule34video tag autocomplete failed: $e');
+      LogUtil.warn('rule34video $path autocomplete failed: $e');
       return const [];
     }
   }
@@ -164,26 +309,47 @@ class R34SearchRepo {
   }
 }
 
-/// rule34video 的 tag 联想结果。
+/// 通用联想结果（tag / 分类 / 创作者共用）。
 ///
-/// 与 rule34.xxx 的区别：这里 tag 的 [title] 内部**保留空格**
-/// （`ada wong (resident evil)`），搜索时原样当关键词用即可。
-class R34VideoTagSuggestion {
-  /// 真正的 tag 文本，可直接用于搜索。
-  final String title;
-
-  /// 站点内部的 tag id（`/tags/<id>/` 用得到）。
+/// 三个端点响应里 id / 名称键名不同，解析时按站点 JS 的顺序统一回退，
+/// 对外只暴露统一的 [id] 与 [title]。
+class R34VideoAutocompleteItem {
+  /// 站点内部的数字 id（blacklist token、tag_ids 参数都用它）。
   final String id;
 
-  /// 使用量。
+  /// 展示 / 直接可用的名称。
+  final String title;
+
+  /// 使用量（tag 端点才有，可能为空）。
   final String total;
 
-  const R34VideoTagSuggestion({
+  const R34VideoAutocompleteItem({
+    required this.id,
     required this.title,
-    this.id = '',
     this.total = '',
   });
 
   @override
-  String toString() => 'R34VideoTagSuggestion($title/$id/$total)';
+  String toString() => 'R34VideoAutocompleteItem($title/$id/$total)';
+}
+
+/// 屏蔽（temp blacklist）联想项。
+class R34BlacklistSuggestion {
+  /// 类型文案：`Tag` / `分类` / `创作者`。
+  final String typeLabel;
+
+  /// 展示名称。
+  final String name;
+
+  /// 服务端认的 token，如 `tag:51`。
+  final String token;
+
+  const R34BlacklistSuggestion({
+    required this.typeLabel,
+    required this.name,
+    required this.token,
+  });
+
+  @override
+  String toString() => 'R34BlacklistSuggestion($typeLabel:$name/$token)';
 }
