@@ -1,107 +1,65 @@
-import 'dart:io' as io;
-
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:file/file.dart' as pf;
-import 'package:file/local.dart' as plocal;
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:r34_video/util/log_util.dart';
 import 'package:r34_video/util/writable_dir.dart';
 
-/// 图片缓存。
+/// 图片缓存（**默认不介入**）。
 ///
-/// 背景（实测）：`flutter_cache_manager` 默认走两处**可能不可写**的位置 ——
-/// * 元数据：`JsonCacheInfoRepository` -> `getApplicationSupportDirectory()`
-///   （`%APPDATA%\<公司>\<产品>\`）；
-/// * 文件：`IOFileSystem` -> `getTemporaryDirectory()`（`%TEMP%\<cacheKey>`）。
+/// 正常情况下 `cached_network_image` / `flutter_cache_manager` 自己的默认实现
+/// 就是对的：元数据落 `%APPDATA%`，文件落 `%TEMP%`，而且有磁盘持久化。
+/// **不要去 override 它**，那样等于给上游包打补丁，难维护。
 ///
-/// 受限身份下这两处都会 `Access denied`，而异常发生在异步初始化里，
-/// 属未捕获异常 —— 后果是**缓存库始终不可用，图片一直出不来**。
+/// 这里只保留一个**显式开启**的逃生舱，用于极端环境（例如进程被标了
+/// Low Mandatory Level，`%TEMP%`/`%APPDATA%` 一律写不进去）。那种情况下
+/// 默认实现会持续抛 `PathAccessException` 且图片永远出不来。
 ///
-/// 这里两处都换掉：
-/// * `repo` 用 [NonStoringObjectProvider]（纯内存元数据，不碰数据库）；
-/// * `fileSystem` 换成 [_WritableFileSystem]（自己实现，只放可写目录）。
+/// 开启方式：在 main() 里调用 [useWritableFallback]，或者设环境变量
+/// `R34_IMAGE_CACHE_FALLBACK=1`。
 ///
-/// 注意**不要**去继承官方 `IOFileSystem`：它的 `_fileDir` 是急切初始化的
-/// （`IOFileSystem(key) : _fileDir = createDirectory(key)`），父类构造时就一定会
-/// 去建 `%TEMP%\<key>`，照样抛异常，覆写 `createFile` 救不了。
-///
-/// 想固定缓存位置可设环境变量 `R34_WRITABLE_DIR`。
+/// 注意：正确的修法是**去掉那个 Low 完整性标签**：
+/// ```powershell
+/// icacls <工程根> /setintegritylevel Medium /T /C
+/// ```
+/// 修完就不需要这个逃生舱了。
 class AppImageCache {
   const AppImageCache._();
 
-  static const String cacheKey = 'r34_explorer_images';
+  static const String _envFlag = 'R34_IMAGE_CACHE_FALLBACK';
 
-  static BaseCacheManager? _manager;
+  static BaseCacheManager? _fallback;
 
-  /// 全局替换 `CachedNetworkImage` 的默认缓存管理器。
-  ///
-  /// 用静态字段覆盖是为了让所有调用点（缩略图、详情大图、头像…）一次性生效，
-  /// 不必每个 `CachedNetworkImage` 都传 `cacheManager`。
+  /// 按环境变量决定是否启用逃生舱（main() 里调用即可）。
   static void ensureInitialized() {
-    if (_manager != null) {
-      return;
-    }
-
-    try {
-      final manager = CacheManager(
-        Config(
-          cacheKey,
-          stalePeriod: const Duration(days: 7),
-          maxNrOfCacheObjects: 300,
-          // 不再申请 getApplicationSupportDirectory()
-          repo: NonStoringObjectProvider(),
-          // 不再落 %TEMP% 下不可写的子目录
-          fileSystem: _WritableFileSystem(),
-        ),
-      );
-      _manager = manager;
-      CachedNetworkImageProvider.defaultCacheManager = manager;
-      LogUtil.info('image cache ready, base=${WritableDir.resolve()}');
-    } catch (e, st) {
-      // 构造失败也不能让 App 起不来。
-      LogUtil.error('image cache init failed: $e\n$st');
+    if (WritableDir.envFlagEnabled(_envFlag)) {
+      useWritableFallback();
     }
   }
 
-  static BaseCacheManager? get manager => _manager;
-}
+  /// 是否已切到「落可写目录」的缓存。
+  static bool get usingFallback => _fallback != null;
 
-/// 自己实现的缓存文件系统：唯一的职责是把文件放到一个**真的写得进去**的目录。
-///
-/// `flutter_cache_manager` 的 `FileSystem` 接口只有一个 `createFile`，
-/// 所以这里实现起来很短；也正因为不继承 `IOFileSystem`，
-/// 父类那个「急切创建 %TEMP% 子目录」的副作用才被彻底避开。
-class _WritableFileSystem implements FileSystem {
-  static const plocal.LocalFileSystem _delegate = plocal.LocalFileSystem();
-
-  /// 缓存文件落本地前**无需**预先建目录；这里按需创建。
-  pf.Directory? _dir;
-
-  pf.Directory? _ensureDir() {
-    if (_dir != null) {
-      return _dir;
+  /// 显式切到「缓存落 [WritableDir] 探出来的可写目录」。
+  ///
+  /// 只在默认实现确实不可用时才调用；代价是不走官方默认位置。
+  static void useWritableFallback() {
+    if (_fallback != null) {
+      return;
     }
     final base = WritableDir.resolve();
     if (base == null) {
-      return null;
+      LogUtil.warn('image cache fallback skipped: no writable directory');
+      return;
     }
-    final dir = _delegate.directory(
-      '$base${io.Platform.pathSeparator}cache_images',
-    );
-    if (!dir.existsSync()) {
-      dir.createSync(recursive: true);
-    }
-    _dir = dir;
-    return dir;
-  }
 
-  @override
-  Future<pf.File> createFile(String name) async {
-    final dir = _ensureDir();
-    if (dir == null) {
-      // 探测不到可写目录：抛出去，让缓存库退化为纯联网取图（图片仍能显示）。
-      throw const io.FileSystemException('no writable directory available');
-    }
-    return dir.childFile(name);
+    final manager = CacheManager(
+      Config(
+        'r34_explorer_images',
+        stalePeriod: const Duration(days: 7),
+        maxNrOfCacheObjects: 300,
+      ),
+    );
+    _fallback = manager;
+    CachedNetworkImageProvider.defaultCacheManager = manager;
+    LogUtil.info('image cache fallback enabled (base writable check: $base)');
   }
 }

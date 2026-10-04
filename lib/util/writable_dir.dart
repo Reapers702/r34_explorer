@@ -3,35 +3,47 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:r34_video/util/log_util.dart';
 
-/// 找一块「本进程真的写得进去」的目录。
+/// 探测「本进程真的写得进去」的目录。
 ///
-/// 背景（实测）：在某些 Windows 环境里，App 进程跑在受限身份下，
-/// `%TEMP%` / `%APPDATA%` 这类目录的 ACL 里没有该身份能匹配的授权项，
-/// 于是 `Directory.create` / `File.write` 直接 `Access denied(errno=5)`。
-/// 官方组件（`path_provider`、`flutter_cache_manager`、`media_kit`）都会因此失败：
-/// 图片缓存建不起来 -> 图片一直不出来。
+/// 正常环境用不到它 —— 标准位置（`%TEMP%` / `%APPDATA%`）本来就该可写。
+/// 它只服务于一种异常情况：**工程目录被打了 `Low Mandatory Level` 标签**，
+/// 于是从这里编译/启动的进程都是低完整性，写标准位置一律 `Access denied`。
 ///
-/// 对照组：工程/工作区目录通常带 `Authenticated Users:(M)`，那个身份写得进去。
-///
-/// 所以这里**先探测、再使用**：按顺序试几个候选目录，谁先写成功就用谁；
-/// 全都不行时返回 null，由调用方降级（例如只走内存缓存）。
+/// 正确的修法永远是去掉那个标签：
+/// ```powershell
+/// icacls <工程根> /setintegritylevel Medium /T /C
+/// ```
+/// 这个探测只作为「不想动系统权限时」的兜底，默认不启用。
 class WritableDir {
   const WritableDir._();
 
   static String? _cache;
   static bool _resolved = false;
 
-  /// 记一次结果，方便日志/诊断页展示。
+  /// 是否探测到了可写目录（供日志/诊断使用）。
   static String? get selected => _cache;
 
-  /// 取一个可写目录（结果缓存，只探测一次）。
+  /// 读一个「开启某功能」的环境变量开关。
+  static bool envFlagEnabled(String name) {
+    final value = Platform.environment[name];
+    if (value == null) {
+      return false;
+    }
+    final normalized = value.trim().toLowerCase();
+    return normalized == '1' ||
+        normalized == 'true' ||
+        normalized == 'yes' ||
+        normalized == 'on';
+  }
+
+  /// 取一个可写目录（结果缓存，只探测一次）；全失败返回 null。
   static String? resolve() {
     if (_resolved) {
       return _cache;
     }
     _resolved = true;
 
-    for (final candidate in _candidates()) {
+    for (final candidate in candidates()) {
       if (candidate.isEmpty) {
         continue;
       }
@@ -40,26 +52,28 @@ class WritableDir {
         LogUtil.info('writable dir = $candidate');
         return _cache;
       }
-      LogUtil.warn('writable dir FAILED: $candidate');
     }
 
-    LogUtil.error('no writable directory found; fallback to memory-only');
+    LogUtil.warn('no writable directory found');
     return null;
   }
 
-  static Iterable<String> _candidates() sync* {
+  /// 候选目录，按优先级。
+  ///
+  /// 低完整性进程能写的位置，通常是 ACL 里带 `Everyone` / `Authenticated Users`
+  /// 的目录（工作区往往就是这种），所以工程目录排在标准位置前面。
+  @visibleForTesting
+  static Iterable<String> candidates() sync* {
     final env = Platform.environment;
 
-    // 1) 显式指定优先（排查/定制用）
     final override = env['R34_WRITABLE_DIR'];
     if (override != null && override.isNotEmpty) {
       yield override;
     }
 
-    // 2) 工作区：实测在受限身份下也可写。
-    yield r'D:\develop\flutter\r34_explorer\.runtime';
+    final cwd = Directory.current.path;
+    yield '$cwd${Platform.pathSeparator}.runtime';
 
-    // 3) exe 同级的 data 目录（便携式布局）
     try {
       final exeDir = File(Platform.resolvedExecutable).parent.path;
       yield '$exeDir${Platform.pathSeparator}.runtime';
@@ -67,7 +81,6 @@ class WritableDir {
       // 忽略
     }
 
-    // 4) 用户相关的标准位置（正常环境下本来就能写）
     final local = env['LOCALAPPDATA'];
     if (local != null && local.isNotEmpty) {
       yield '$local${Platform.pathSeparator}r34_explorer';
@@ -77,9 +90,7 @@ class WritableDir {
       yield '$appData${Platform.pathSeparator}top.reapers.r34explorer';
     }
 
-    // 5) 临时目录（受限环境下通常也不行，放最后）
     yield '${Directory.systemTemp.path}${Platform.pathSeparator}r34_explorer';
-    yield Directory.systemTemp.path;
   }
 
   static bool _canWrite(String dir) {
@@ -88,9 +99,7 @@ class WritableDir {
       if (!target.existsSync()) {
         target.createSync(recursive: true);
       }
-      final probe = File(
-        '$dir${Platform.pathSeparator}.write_probe',
-      );
+      final probe = File('$dir${Platform.pathSeparator}.write_probe');
       probe.writeAsStringSync('${DateTime.now().millisecondsSinceEpoch}');
       probe.deleteSync();
       return true;

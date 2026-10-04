@@ -43,8 +43,3 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-
-# 应用运行时数据（图片缓存等）。
-# 受限环境下 %TEMP% / %APPDATA% 不可写，缓存会落到这里，
-# 见 lib/util/writable_dir.dart。
-/.runtime/
