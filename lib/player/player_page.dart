@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit_video/media_kit_video.dart';
@@ -6,6 +8,7 @@ import 'package:r34_video/player/player_args.dart';
 import 'package:r34_video/player/r34_player_controller.dart';
 import 'package:r34_video/page/component/common/app_select_tile.dart';
 import 'package:r34_video/provider/settings_provider.dart';
+import 'package:r34_video/repo/playback_progress_repo.dart';
 import 'package:r34_video/theme/app_colors.dart';
 import 'package:r34_video/theme/app_dimens.dart';
 
@@ -24,11 +27,14 @@ class _PlayerPageState extends State<PlayerPage> {
   R34PlayerController? _controller;
   PlayerArgs? _args;
   bool _fullscreen = false;
+  bool _initStarted = false;
+  String? _detailUrl;
+  Timer? _progressTimer;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_controller != null) {
+    if (_controller != null || _initStarted) {
       return;
     }
 
@@ -37,18 +43,59 @@ class _PlayerPageState extends State<PlayerPage> {
       return;
     }
     _args = rawArgs;
+    _detailUrl = rawArgs.detailUrl;
+    _initStarted = true;
+    _initController(rawArgs);
+  }
 
+  Future<void> _initController(PlayerArgs rawArgs) async {
     final settings = context.read<SettingsProvider>();
+
+    // 先读上次进度再建控制器，这样「续播起点」能在打开时一次性传入。
+    final resume = rawArgs.detailUrl == null
+        ? null
+        : await PlaybackProgressRepo.getResume(rawArgs.detailUrl!);
+    if (!mounted) {
+      return;
+    }
+
     _controller = R34PlayerController(
       args: rawArgs,
       preferredLabel: settings.settingsModel.preferredQuality,
       autoPlay: settings.settingsModel.autoPlay,
+      initialPosition: resume,
     );
-    _controller!.initialize();
+    await _controller!.initialize();
+    if (!mounted) {
+      return;
+    }
+    setState(() {});
+    _startProgressSaver();
+  }
+
+  /// 周期性 + 退出时保存播放位置，供下次续播。
+  void _startProgressSaver() {
+    const saveInterval = Duration(seconds: 15);
+    _progressTimer = Timer.periodic(saveInterval, (_) => _saveProgress());
+  }
+
+  Future<void> _saveProgress() async {
+    final url = _detailUrl;
+    final controller = _controller;
+    if (url == null || url.isEmpty || controller == null) {
+      return;
+    }
+    await PlaybackProgressRepo.save(
+      url,
+      controller.position,
+      controller.duration,
+    );
   }
 
   @override
   void dispose() {
+    _progressTimer?.cancel();
+    _saveProgress();
     if (_fullscreen) {
       _leaveFullscreenSystemUi();
     }
@@ -189,12 +236,23 @@ class _PlayerPageState extends State<PlayerPage> {
     return Scaffold(
       backgroundColor: AppColors.playerBackground,
       body: controller == null
-          ? const Center(
-              child: Text(
-                '播放参数缺失',
-                style: TextStyle(color: AppColors.onDark),
-              ),
-            )
+          ? _initStarted
+              ? const Center(
+                  child: SizedBox(
+                    width: 34,
+                    height: 34,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2.5,
+                      color: Colors.white,
+                    ),
+                  ),
+                )
+              : const Center(
+                  child: Text(
+                    '播放参数缺失',
+                    style: TextStyle(color: AppColors.onDark),
+                  ),
+                )
           : AnimatedBuilder(
               animation: controller,
               builder: (context, _) => _buildPlayerBody(controller),

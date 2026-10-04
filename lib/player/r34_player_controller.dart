@@ -16,7 +16,9 @@ class R34PlayerController extends ChangeNotifier {
     required this.args,
     String? preferredLabel,
     bool autoPlay = true,
+    Duration? initialPosition,
   })  : _autoPlay = autoPlay,
+        _resumeAt = initialPosition,
         _currentIndex = args.initialIndex(preferredLabel) {
     _player = Player(
       configuration: const PlayerConfiguration(
@@ -31,6 +33,9 @@ class R34PlayerController extends ChangeNotifier {
 
   final PlayerArgs args;
   final bool _autoPlay;
+
+  /// 需要续播的起点；null 表示从头播。
+  final Duration? _resumeAt;
 
   late final Player _player;
   late final VideoController _videoController;
@@ -159,6 +164,11 @@ class R34PlayerController extends ChangeNotifier {
       );
       if (!_disposed) {
         _initialized = true;
+        // 续播：打开后把进度定位到上次的位置。
+        final resume = _resumeAt;
+        if (resume != null && resume > Duration.zero) {
+          unawaited(_player.seek(resume));
+        }
         _safeNotify();
       }
     } catch (e, st) {
