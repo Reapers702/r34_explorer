@@ -89,13 +89,13 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "com.example" "\0"
-            VALUE "FileDescription", "r34_video" "\0"
+            VALUE "CompanyName", "top.reapers.r34explorer" "\0"
+            VALUE "FileDescription", "Rule34 Explorer" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "r34_video" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2025 com.example. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2025 top.reapers.r34explorer. All rights reserved." "\0"
             VALUE "OriginalFilename", "r34_video.exe" "\0"
-            VALUE "ProductName", "r34_video" "\0"
+            VALUE "ProductName", "Rule34 Explorer" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
