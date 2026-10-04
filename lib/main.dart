@@ -1,3 +1,7 @@
+import 'dart:io' show Platform;
+import 'dart:ui' show PlatformDispatcher;
+
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:media_kit/media_kit.dart';
@@ -11,6 +15,20 @@ import 'package:r34_video/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Windows 桌面端不需要读屏等辅助功能：让引擎层不构建语义树。
+  // 否则滚动网格、图片加载会让 accessibility_bridge 疯狂刷
+  // `Failed to update ui::AXTree`（引擎层已知噪音，应用层只能减少语义变化，
+  // 无法消除；这里直接从源头关掉）。平台后续若再请求，也保持关闭。
+  if (!kIsWeb && Platform.isWindows) {
+    final pd = PlatformDispatcher.instance;
+    final originalOnSemantics = pd.onSemanticsEnabledChanged;
+    pd.onSemanticsEnabledChanged = () {
+      originalOnSemantics?.call();
+      pd.setSemanticsTreeEnabled(false);
+    };
+    pd.setSemanticsTreeEnabled(false);
+  }
 
   // package:media_kit 的初始化，必须在 runApp 之前完成。
   MediaKit.ensureInitialized();
