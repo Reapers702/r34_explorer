@@ -5,8 +5,8 @@ import 'package:r34_video/constant/page_routes.dart';
 import 'package:r34_video/page/component/common/app_paged_grid_controller.dart';
 import 'package:r34_video/page/component/common/app_search_bar.dart';
 import 'package:r34_video/page/component/common/app_state_view.dart';
+import 'package:r34_video/page/component/common/tag_search_bar.dart';
 import 'package:r34_video/page/site/r34_xxx_detail_page.dart';
-import 'package:r34_video/page/site/tag_search_bar.dart';
 import 'package:r34_video/repo/entity/r34_xxx_post.dart';
 import 'package:r34_video/repo/r34_xxx_repo.dart';
 import 'package:r34_video/repo/site_registry.dart';
@@ -30,7 +30,7 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
   List<String> _tags = const [];
 
   /// 传给接口的 tag 串。
-  String get _query => TagSearchBar.joinTags(_tags);
+  String get _query => TagRules.rule34xxx.joinTags(_tags);
 
   late final AppPagedGridController _grid = AppPagedGridController(
     loader: (page) async {
@@ -96,6 +96,24 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
     await _grid.reset();
   }
 
+  /// 联想：走官方 `autocomplete.php`（无需鉴权）。
+  Future<List<TagSuggestion>> _autocomplete(String query) async {
+    final list = await R34XxxRepo.autocomplete(query);
+    return list
+        .map((e) => TagSuggestion(
+              value: e.value,
+              label: e.value,
+              count: _countOf(e.label),
+            ))
+        .toList();
+  }
+
+  /// 官方返回的 label 形如 `ada_wong (23076)`，取出括号里的使用量。
+  String? _countOf(String label) {
+    final match = RegExp(r'\(([\d,]+)\)\s*$').firstMatch(label);
+    return match?.group(1)?.replaceAll(',', '');
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -122,6 +140,8 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
                         Expanded(
                           child: TagSearchBar(
                             selectedTags: _tags,
+                            rules: TagRules.rule34xxx,
+                            searchTags: _autocomplete,
                             onChanged: _onTagsChanged,
                           ),
                         ),

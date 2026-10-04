@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:html/parser.dart' as parser;
 import 'package:r34_video/constant/r34_const.dart';
 import 'package:r34_video/repo/entity/r34_page.dart';
 import 'package:r34_video/repo/entity/r34_search_request.dart';
 import 'package:r34_video/repo/r34_client.dart';
 import 'package:r34_video/util/http_trace_util.dart';
+import 'package:r34_video/util/log_util.dart';
 import 'package:r34_video/util/r34_video_list_parser.dart';
 
 /// 搜索 / 分类页请求。
@@ -73,6 +76,70 @@ class R34SearchRepo {
     }
   }
 
+  /// tag 联想。
+  ///
+  /// 站点搜索框自己用的就是这个端点：`/tags_json.php?id=true&advanced_search=true&q=`。
+  /// **不需要 cookie**（实测无凭据直接 200）。
+  ///
+  /// 返回形如：
+  /// ```json
+  /// {"total_count":30,"items":[{"id":"51","title":"ada wong (resident evil)","total":"2997"}]}
+  /// ```
+  /// 注意本站在 tag 里**保留空格**（`ada wong (resident evil)`），
+  /// 与 rule34.xxx 相反；搜索时把 `title` 原样当作关键词即可（实测能精确命中）。
+  static Future<List<R34VideoTagSuggestion>> autocompleteTags(
+    String query, {
+    int limit = 10,
+  }) async {
+    final keyword = query.trim();
+    if (keyword.isEmpty) {
+      return const [];
+    }
+
+    final uri = Uri.https(R34Const.host, '/tags_json.php', {
+      'id': 'true',
+      'advanced_search': 'true',
+      'q': keyword,
+    });
+
+    try {
+      final res = await R34Client.instance.get(uri);
+      if (res.statusCode != 200) {
+        return const [];
+      }
+
+      final dynamic decoded = jsonDecode(res.body);
+      if (decoded is! Map || decoded['items'] is! List) {
+        // 无结果时站点返回 "items":"" 而不是数组，这里一并兜住。
+        return const [];
+      }
+
+      final result = <R34VideoTagSuggestion>[];
+      for (final item in decoded['items'] as List) {
+        if (item is! Map) {
+          continue;
+        }
+        final title = '${item['title'] ?? ''}'.trim();
+        if (title.isEmpty) {
+          continue;
+        }
+        result.add(R34VideoTagSuggestion(
+          title: title,
+          id: '${item['id'] ?? ''}',
+          total: '${item['total'] ?? ''}',
+        ));
+        if (result.length >= limit) {
+          break;
+        }
+      }
+      return result;
+    } catch (e) {
+      // 联想失败静默处理，不打扰用户输入。
+      LogUtil.warn('rule34video tag autocomplete failed: $e');
+      return const [];
+    }
+  }
+
   /// 站点把空格换成 `-`，`-` 换成 `--`。
   static String _pathOf(R34SearchRequest request) {
     switch (request.keywordType) {
@@ -95,4 +162,28 @@ class R34SearchRepo {
     final parseType = _parseTypeMap[type] ?? ParseType.searchKeyword;
     return document.getElementById(parseType.parseId)?.outerHtml;
   }
+}
+
+/// rule34video 的 tag 联想结果。
+///
+/// 与 rule34.xxx 的区别：这里 tag 的 [title] 内部**保留空格**
+/// （`ada wong (resident evil)`），搜索时原样当关键词用即可。
+class R34VideoTagSuggestion {
+  /// 真正的 tag 文本，可直接用于搜索。
+  final String title;
+
+  /// 站点内部的 tag id（`/tags/<id>/` 用得到）。
+  final String id;
+
+  /// 使用量。
+  final String total;
+
+  const R34VideoTagSuggestion({
+    required this.title,
+    this.id = '',
+    this.total = '',
+  });
+
+  @override
+  String toString() => 'R34VideoTagSuggestion($title/$id/$total)';
 }

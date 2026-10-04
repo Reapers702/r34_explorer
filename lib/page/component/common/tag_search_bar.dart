@@ -2,36 +2,104 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:r34_video/page/component/common/section_header.dart';
-import 'package:r34_video/repo/r34_xxx_repo.dart';
 import 'package:r34_video/theme/app_colors.dart';
 import 'package:r34_video/theme/app_dimens.dart';
 
-/// rule34.xxx 的 tag 搜索框。
+/// tag 联想的一条候选（与具体站点无关）。
+class TagSuggestion {
+  /// 真正的 tag，可直接用于搜索，例如 `ada_wong` 或 `ada wong (resident evil)`。
+  final String value;
+
+  /// 展示用文案；为 null 时用 [value]。
+  final String? label;
+
+  /// 使用量（部分站点会给），仅用于展示。
+  final String? count;
+
+  const TagSuggestion({required this.value, this.label, this.count});
+
+  /// 列表里显示的文本。
+  String get display => (label ?? value).replaceAll('_', ' ');
+
+  /// 右侧的 `(12345)`，没有就返回 null。
+  String? get countText => (count == null || count!.isEmpty) ? null : '($count)';
+
+  @override
+  String toString() => 'TagSuggestion($value)';
+}
+
+/// 各站点 tag 规则的差异点。
 ///
-/// 对齐站点原有的两处能力（之前缺失）：
-/// 1. **已选 tag 可见**：选中的 tag 以可删除 chip 列出，和站点一样一眼看清当前条件；
-/// 2. **输入联想**：走官方 `autocomplete.php`（无需鉴权），展示带使用量的候选。
+/// 实测两个站**正好相反**：
+/// * rule34.xxx：tag 内部用**下划线**（`ada_wong`），空格是 tag 之间的分隔符；
+/// * rule34video：tag 内部就**带空格**（`ada wong (resident evil)`）。
 ///
-/// booru 规范：tag 内部用下划线、空格是分隔符。用户输入 `ada wong` 会被
-/// 规整为 `ada_wong`（见 [R34XxxRepo.normalizeTagQuery]），所以中英文输入习惯都能用。
+/// 所以「输入怎么变成合法 tag」和「展示成什么」必须按站点配置，不能写死。
+class TagRules {
+  /// 把用户原始输入规整成搜索用的 tag。
+  final String Function(String raw) normalizeInput;
+
+  /// 把 tag 还原成给人看的形式。
+  final String Function(String tag) displayName;
+
+  /// 已选多个 tag 时，拼成接口需要的搜索串。
+  final String Function(List<String> tags) joinTags;
+
+  /// 提示文案。
+  final String hintText;
+
+  const TagRules({
+    required this.normalizeInput,
+    required this.displayName,
+    required this.joinTags,
+    required this.hintText,
+  });
+
+  /// rule34.xxx：空格/连字符 -> 下划线；展示时下划线换回空格。
+  static final TagRules rule34xxx = TagRules(
+    normalizeInput: (raw) => raw
+        .trim()
+        .replaceAll(RegExp(r'[\s\-]+'), '_')
+        .replaceAll(RegExp(r'_+'), '_')
+        .replaceAll(RegExp(r'^_|_$'), ''),
+    displayName: (tag) => tag.replaceAll('_', ' '),
+    joinTags: (tags) => tags.join(' '),
+    hintText: '输入 tag，支持联想（如 ada wong）',
+  );
+
+  /// rule34video：tag 本身就带空格，原样保留（只压掉多余空白）。
+  static final TagRules rule34video = TagRules(
+    normalizeInput: (raw) => raw.trim().replaceAll(RegExp(r'\s+'), ' '),
+    displayName: (tag) => tag,
+    joinTags: (tags) => tags.join(' '),
+    hintText: '输入 tag，支持联想（如 ada wong）',
+  );
+}
+
+/// 通用的 tag 搜索框：**已选 tag 可见** + **输入联想**。
+///
+/// 两个站共用（差异通过 [rules] 与 [searchTags] 注入），对应站点原有的能力：
+/// 选中/排除的 tag 以可删除 chip 列出，输入时给出带使用量的候选。
 class TagSearchBar extends StatefulWidget {
-  /// 当前已选中的 tag（不带修饰符的原值，如 `ada_wong`）。
+  /// 当前已选中的 tag（原值，未做展示转换）。
   final List<String> selectedTags;
 
-  /// 条件变化（增删 tag 或提交输入）时回调，给出完整的 tag 串。
+  /// 条件变化时回调，给出完整的搜索串（已按 [rules] 拼好）。
   final ValueChanged<String> onChanged;
 
-  final String hintText;
+  /// 站点 tag 规则。
+  final TagRules rules;
+
+  /// 联想查询。返回空列表则不弹下拉。
+  final Future<List<TagSuggestion>> Function(String query) searchTags;
 
   const TagSearchBar({
     super.key,
     required this.selectedTags,
     required this.onChanged,
-    this.hintText = '输入 tag，支持联想（如 ada wong）',
+    required this.rules,
+    required this.searchTags,
   });
-
-  /// 把 tag 列表拼成接口需要的 tags 串。
-  static String joinTags(List<String> tags) => tags.join(' ');
 
   @override
   State<TagSearchBar> createState() => _TagSearchBarState();
@@ -44,10 +112,8 @@ class _TagSearchBarState extends State<TagSearchBar> {
   final FocusNode _focusNode = FocusNode();
 
   Timer? _debounce;
-  List<R34XxxTagSuggestion> _suggestions = const [];
+  List<TagSuggestion> _suggestions = const [];
   bool _loading = false;
-
-  /// 本次联想对应的输入，用于丢弃过期响应。
   String _pendingQuery = '';
 
   @override
@@ -76,7 +142,7 @@ class _TagSearchBarState extends State<TagSearchBar> {
 
   void _onTextChanged(String raw) {
     _debounce?.cancel();
-    final query = R34XxxRepo.normalizeTagQuery(raw);
+    final query = widget.rules.normalizeInput(raw);
     if (query.isEmpty) {
       setState(() {
         _suggestions = const [];
@@ -87,10 +153,10 @@ class _TagSearchBarState extends State<TagSearchBar> {
     }
 
     setState(() => _loading = true);
-    // 防抖：边打字边请求会把接口打爆，也容易乱序。
     _debounce = Timer(const Duration(milliseconds: 320), () async {
       _pendingQuery = query;
-      final result = await R34XxxRepo.autocomplete(query);
+      final result = await widget.searchTags(query);
+      // 丢弃过期响应，避免乱序覆盖。
       if (!mounted || _pendingQuery != query) {
         return;
       }
@@ -114,37 +180,37 @@ class _TagSearchBarState extends State<TagSearchBar> {
 
   /// 选中一个 tag。
   ///
-  /// 不带 `-` 前缀就是普通「包含」；如果用户输入以 `-` 开头，直接沿用，
-  /// 因为 `-tag` 在 booru 语法里表示排除，是合法条件。
+  /// `-tag` 表示排除，符合 booru 语法，原样保留前缀。
   void _addTag(String tag) {
-    final value = tag.trim();
-    if (value.isEmpty) {
+    final raw = tag.trim();
+    if (raw.isEmpty) {
       return;
     }
-    // 站点自己的 tag 一律是下划线形式。
-    final normalized = value.startsWith('-')
-        ? '-${R34XxxRepo.normalizeTagQuery(value.substring(1))}'
-        : R34XxxRepo.normalizeTagQuery(value);
-
-    if (widget.selectedTags.contains(normalized)) {
-      _controller.clear();
-      _hideOverlay();
+    final normalized = raw.startsWith('-')
+        ? '-${widget.rules.normalizeInput(raw.substring(1))}'
+        : widget.rules.normalizeInput(raw);
+    if (normalized.isEmpty || normalized == '-') {
       return;
     }
 
-    final next = [...widget.selectedTags, normalized];
     _controller.clear();
     setState(() {
       _suggestions = const [];
       _loading = false;
     });
     _hideOverlay();
-    widget.onChanged(TagSearchBar.joinTags(next));
+
+    if (widget.selectedTags.contains(normalized)) {
+      return;
+    }
+    widget.onChanged(
+      widget.rules.joinTags([...widget.selectedTags, normalized]),
+    );
   }
 
   void _removeTag(String tag) {
     final next = widget.selectedTags.where((e) => e != tag).toList();
-    widget.onChanged(TagSearchBar.joinTags(next));
+    widget.onChanged(widget.rules.joinTags(next));
   }
 
   void _clearAll() {
@@ -165,15 +231,13 @@ class _TagSearchBarState extends State<TagSearchBar> {
           child: OverlayPortal(
             controller: _overlay,
             overlayChildBuilder: (context) => _buildSuggestionOverlay(),
-            child: AppSearchBarLike(
+            child: _TagInputField(
               controller: _controller,
               focusNode: _focusNode,
-              hintText: widget.hintText,
+              hintText: widget.rules.hintText,
               loading: _loading,
               onChanged: _onTextChanged,
-              onSubmitted: _addTag,
-              onSuffixTap: _addTag,
-              suffixIcon: Icons.add_rounded,
+              onSubmit: _addTag,
             ),
           ),
         ),
@@ -191,17 +255,27 @@ class _TagSearchBarState extends State<TagSearchBar> {
       runSpacing: AppSpacing.sm,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        ...widget.selectedTags.map(
-          (tag) => AppChip.text(
-            // 站点展示时把下划线还原成空格，更符合直觉。
-            tag.startsWith('-')
-                ? '-${tag.substring(1).replaceAll('_', ' ')}'
-                : tag.replaceAll('_', ' '),
-            selected: true,
+        ...widget.selectedTags.map((tag) {
+          final isExclude = tag.startsWith('-');
+          final shown = isExclude
+              ? '-${widget.rules.displayName(tag.substring(1))}'
+              : widget.rules.displayName(tag);
+          return AppChip.text(
+            shown,
+            selected: !isExclude,
             onDeleted: () => _removeTag(tag),
             fontSize: 12,
-          ),
-        ),
+            // 排除项用弱色区分，符合 booru 直觉。
+            color: isExclude ? AppColors.error : null,
+            leading: isExclude
+                ? const Icon(
+                    Icons.block_rounded,
+                    size: 12,
+                    color: AppColors.error,
+                  )
+                : null,
+          );
+        }),
         GestureDetector(
           onTap: _clearAll,
           behavior: HitTestBehavior.opaque,
@@ -214,8 +288,8 @@ class _TagSearchBarState extends State<TagSearchBar> {
                     size: 14, color: AppColors.textHint),
                 SizedBox(width: 2),
                 Text('清空',
-                    style:
-                        TextStyle(fontSize: 12, color: AppColors.textHint)),
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textHint)),
               ],
             ),
           ),
@@ -240,10 +314,7 @@ class _TagSearchBarState extends State<TagSearchBar> {
           borderRadius: BorderRadius.circular(AppRadius.sm),
           color: AppColors.surface,
           child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: width,
-              maxHeight: 260,
-            ),
+            constraints: BoxConstraints(maxWidth: width, maxHeight: 260),
             child: ListView.separated(
               shrinkWrap: true,
               padding: EdgeInsets.zero,
@@ -266,17 +337,15 @@ class _TagSearchBarState extends State<TagSearchBar> {
                         const SizedBox(width: AppSpacing.sm),
                         Expanded(
                           child: Text(
-                            item.displayName,
+                            item.display,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(fontSize: 13),
                           ),
                         ),
-                        if (item.label.contains('('))
+                        if (item.countText != null)
                           Text(
-                            item.label.substring(
-                              item.label.lastIndexOf('('),
-                            ),
+                            item.countText!,
                             style: const TextStyle(
                               fontSize: 11,
                               color: AppColors.textHint,
@@ -295,30 +364,22 @@ class _TagSearchBarState extends State<TagSearchBar> {
   }
 }
 
-/// 一个和 [AppSearchBar] 视觉一致的输入框，但多了 `onChanged` 与尾部按钮。
-///
-/// 之所以不直接复用 `AppSearchBar`：那个组件的定位是「点开就跳搜索页」，
-/// 而这里需要真正的实时输入 + 联想，两者交互模型不同，硬套会把那边搞复杂。
-class AppSearchBarLike extends StatelessWidget {
+/// 输入框本体：视觉与 `AppSearchBar` 一致，但支持实时输入 + 加载态 + 提交。
+class _TagInputField extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final String hintText;
   final bool loading;
   final ValueChanged<String> onChanged;
-  final ValueChanged<String> onSubmitted;
-  final ValueChanged<String> onSuffixTap;
-  final IconData suffixIcon;
+  final ValueChanged<String> onSubmit;
 
-  const AppSearchBarLike({
-    super.key,
+  const _TagInputField({
     required this.controller,
     required this.focusNode,
     required this.hintText,
     required this.onChanged,
-    required this.onSubmitted,
-    required this.onSuffixTap,
+    required this.onSubmit,
     this.loading = false,
-    this.suffixIcon = Icons.add_rounded,
   });
 
   @override
@@ -342,7 +403,7 @@ class AppSearchBarLike extends StatelessWidget {
               focusNode: focusNode,
               textInputAction: TextInputAction.done,
               onChanged: onChanged,
-              onSubmitted: onSubmitted,
+              onSubmitted: onSubmit,
               style: const TextStyle(
                 fontSize: 14,
                 color: AppColors.textPrimary,
@@ -354,8 +415,7 @@ class AppSearchBarLike extends StatelessWidget {
                 border: InputBorder.none,
                 enabledBorder: InputBorder.none,
                 focusedBorder: InputBorder.none,
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 10),
+                contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 hintStyle: const TextStyle(
                   color: AppColors.textHint,
                   fontSize: 13,
@@ -365,7 +425,7 @@ class AppSearchBarLike extends StatelessWidget {
           ),
           if (loading)
             const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 8),
+              padding: EdgeInsets.symmetric(horizontal: 6),
               child: SizedBox(
                 width: 12,
                 height: 12,
@@ -378,8 +438,8 @@ class AppSearchBarLike extends StatelessWidget {
             iconSize: 18,
             color: AppColors.textSecondary,
             tooltip: '添加 tag',
-            onPressed: () => onSuffixTap(controller.text),
-            icon: Icon(suffixIcon),
+            onPressed: () => onSubmit(controller.text),
+            icon: const Icon(Icons.add_rounded),
           ),
           const SizedBox(width: AppSpacing.xs),
         ],

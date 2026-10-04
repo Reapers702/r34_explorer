@@ -80,7 +80,7 @@ GET https://rule34-api.netlify.app/count?tags=...                          → 2
    （`R34XxxRepo.normalizeTagQuery`），所以「ada wong」这种带空格的 tag 可以直接打。
 
 2. **已选 tag 可见 + 输入联想。**
-   `lib/page/site/tag_search_bar.dart` 提供：
+   由共用的 `lib/page/component/common/tag_search_bar.dart` 提供：
    * 选中/排除的 tag 以可删除 chip 列出，和站点一样一眼看清当前条件；
    * 输入时走官方 `autocomplete.php` 给候选，候选项带使用量
      （如 `ada wong (23076)`），展示时把下划线还原成空格；
@@ -101,11 +101,27 @@ GET https://rule34-api.netlify.app/count?tags=...                          → 2
 * 站点有 Cloudflare / DDG 风控，需要 cookie 才能访问，缺失时表现为请求失败或返回验证页。
 * 登录：`GET /login/` 取 `remember_me_csrf_token`（顺带建立会话 cookie）→ 带 token POST。
   **登录名是邮箱**（页面 placeholder 即 "Please enter your email"）。
+* **tag 联想**：站点搜索框用的是 `/tags_json.php?id=true&advanced_search=true&q=`，
+  实测**不需要 cookie**，返回 `{"items":[{"id","title","total"}]}`。
+  本站在 tag 里**保留空格**（`ada wong (resident evil)`），把 `title` 原样当关键词搜索即可精确命中
+  （实测 `SEARCH("ada wong (resident evil)")` 首条即对应视频）。
 * 播放：内置 [media_kit](https://github.com/media-kit/media-kit)（libmpv 内核），
   支持清晰度切换 / 倍速 / 音量 / 全屏 / 双击快进退。
   播放地址需要带 `Referer` / `User-Agent`（站点 `get_file` 会 302 到 CDN 的
   `remote_control.php`，缺头会 403）。
 * 不打算内置浏览器时，可在「设置 → Cookie 与登录」里**手动粘贴 cookie**。
+
+### 两个站的 tag 规则正好相反（写代码时最容易错）
+
+| | rule34video | rule34.xxx |
+|---|---|---|
+| tag 形态 | `ada wong (resident evil)`（**带空格**） | `ada_wong`（**下划线**） |
+| 多词输入 | 保留空格，直接搜即可 | 空格是 tag 分隔符，须转下划线；`q=ada w` 返回空 |
+| 联想接口 | `/tags_json.php`（同站，无需 cookie） | `api.rule34.xxx/autocomplete.php`（无需鉴权） |
+
+差异由 `TagRules`（`lib/page/component/common/tag_search_bar.dart`）按站点注入，
+**搜索组件本身是共用的**：已选 tag 以可删除 chip 列出、输入带联想与使用量、
+`-tag` 表示排除。
 
 ---
 
@@ -151,11 +167,11 @@ lib/
 ├── constant/           常量：路由、站点信息、筛选条件枚举（FilterSelection）
 ├── page/
 │   ├── component/      可复用组件
-│   │   └── common/     设计系统级通用件（状态视图/骨架屏/搜索框/筛选条/分页控制器…）
+│   │   └── common/     设计系统级通用件（状态视图/骨架屏/搜索框/筛选条/
+│   │                   分页控制器/tag 搜索框 TagSearchBar）
 │   ├── site/           rule34.xxx 专属页面（图片站，独立一整套）
 │   │   ├── r34_xxx_home_page      标签搜索 + 网格
-│   │   ├── r34_xxx_detail_page    看图（sample/原图、缩放、沉浸）
-│   │   └── tag_search_bar         已选 tag chip + 输入联想
+│   │   └── r34_xxx_detail_page    看图（sample/原图、缩放、沉浸）
 │   ├── *.dart          rule34video 相关页面（首页/搜索/详情…）
 │   └── settings_page   设置；cookie_settings_page  Cookie 与登录
 ├── player/             内置播放器（R34PlayerController 封装内核 + PlayerPage）
