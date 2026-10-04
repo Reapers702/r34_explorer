@@ -1,18 +1,15 @@
-import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:r34_video/constant/filter_selection.dart';
 import 'package:r34_video/page/component/common/app_filter_chip_bar.dart';
 import 'package:r34_video/page/component/common/app_paged_grid_controller.dart';
 import 'package:r34_video/page/component/common/app_search_bar.dart';
 import 'package:r34_video/page/component/common/app_state_view.dart';
-import 'package:r34_video/page/component/common/tag_search_bar.dart';
 import 'package:r34_video/page/component/filter_bottom_sheet.dart';
 import 'package:r34_video/page/component/video_thumb.dart';
 import 'package:r34_video/repo/entity/r34_page.dart' show R34Video;
 import 'package:r34_video/repo/entity/r34_search_request.dart';
 import 'package:r34_video/repo/r34_search_repo.dart';
 import 'package:r34_video/theme/app_colors.dart';
-import 'package:r34_video/theme/app_dimens.dart';
 
 /// 搜索结果页参数。
 ///
@@ -73,15 +70,6 @@ class _SearchResultPageState extends State<SearchResultPage> {
 
   late R34SearchRequest _search;
 
-  /// 当前已选的 tag（原值；rule34video 的 tag 内部带空格）。
-  List<String> _tags = const [];
-
-  /// 是否对当前条件启用 tag 联想。
-  ///
-  /// 站点自己只在**关键词**搜索上给 tag 联想；tag / 创作者 / 分类页本身就是
-  /// 某个 tag 的结果列表，再加一层 tag 联想语义就乱了，所以只对 keyword 开。
-  bool get _tagInputEnabled => _search.keywordType == SearchKeywordType.keyword;
-
   late final AppPagedGridController _grid = AppPagedGridController(
     loader: (page) async {
       final request = _search.duplicate()..page = page;
@@ -112,57 +100,12 @@ class _SearchResultPageState extends State<SearchResultPage> {
       keywordType: _args!.keywordType,
       keyword: _args!.searchText,
     );
-    _tags = _initialTags(_args!.searchText);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _grid.loadPage(1);
       }
     });
-  }
-
-  /// 初始关键词按空格拆成 chip，让用户一进页面就能看到当前条件。
-  ///
-  /// 注：rule34video 的 tag 本身可能带空格（`ada wong (resident evil)`），
-  /// 拆开只是**展示**成 token；真正搜什么由 [_onTagsChanged] 重新拼。
-  List<String> _initialTags(String keyword) {
-    final trimmed = keyword.trim();
-    if (trimmed.isEmpty || !_tagInputEnabled) {
-      return const [];
-    }
-    return trimmed.split(RegExp(r'\s+'));
-  }
-
-  /// tag 条件变化：直接用新的 tag 串作为搜索关键词重新拉取。
-  ///
-  /// rule34video 的关键词搜索本身就接受带空格的完整 tag，所以这里不需要
-  /// 额外变换（与 rule34.xxx 用下划线不同）。
-  Future<void> _onTagsChanged(String tags) async {
-    final text = tags.trim();
-    final next = text.isEmpty ? const <String>[] : text.split(' ');
-    if (listEquals(next, _tags)) {
-      return;
-    }
-    setState(() {
-      _tags = next;
-      _search = R34SearchRequest(
-        keywordType: _search.keywordType,
-        keyword: text,
-        filter: _search.filter,
-      );
-    });
-    await _reload();
-  }
-
-  Future<List<TagSuggestion>> _autocomplete(String query) async {
-    final list = await R34SearchRepo.autocompleteTags(query);
-    return list
-        .map((e) => TagSuggestion(
-              value: e.title,
-              label: e.title,
-              count: e.total,
-            ))
-        .toList();
   }
 
   @override
@@ -310,22 +253,6 @@ class _SearchResultPageState extends State<SearchResultPage> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // tag 联想：仅在关键词搜索下出现（其它类型本身就是某个 tag 的结果）。
-                if (_tagInputEnabled)
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(
-                      AppSpacing.page,
-                      AppSpacing.sm,
-                      AppSpacing.page,
-                      AppSpacing.xs,
-                    ),
-                    child: TagSearchBar(
-                      selectedTags: _tags,
-                      rules: TagRules.rule34video,
-                      searchTags: _autocomplete,
-                      onChanged: _onTagsChanged,
-                    ),
-                  ),
                 AppFilterChipBar(
                   selection: _search.filter,
                   sortOptions: _sortOptions,
