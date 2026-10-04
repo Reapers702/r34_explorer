@@ -9,6 +9,7 @@ import 'package:r34_video/page/component/filter_bottom_sheet.dart';
 import 'package:r34_video/page/component/video_thumb.dart';
 import 'package:r34_video/repo/entity/r34_page.dart' show R34Video;
 import 'package:r34_video/repo/r34_home_page_repo.dart';
+import 'package:r34_video/repo/site_registry.dart';
 import 'package:r34_video/theme/app_colors.dart';
 import 'package:r34_video/theme/app_dimens.dart';
 
@@ -39,6 +40,8 @@ class _HomePageState extends State<HomePage>
   void initState() {
     super.initState();
     _grid.addListener(_onGridChanged);
+    // 站点切换后本页会被替换掉，这里跟一下以便顶部按钮文案及时更新。
+    SiteRegistry.instance.addListener(_onGridChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _grid.loadPage(1);
@@ -48,6 +51,7 @@ class _HomePageState extends State<HomePage>
 
   @override
   void dispose() {
+    SiteRegistry.instance.removeListener(_onGridChanged);
     _grid.removeListener(_onGridChanged);
     _grid.dispose();
     _pageController.dispose();
@@ -179,6 +183,11 @@ class _HomePageState extends State<HomePage>
                   },
                 ),
                 actions: [
+                  AppToolbarAction(
+                    icon: Icons.swap_horiz_rounded,
+                    tooltip: '切换站点（当前 ${SiteRegistry.instance.current.displayName}）',
+                    onPressed: () => showSiteSwitcher(context),
+                  ),
                   AppToolbarAction(
                     icon: Icons.filter_list_alt,
                     tooltip: '筛选',

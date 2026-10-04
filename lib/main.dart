@@ -6,6 +6,7 @@ import 'package:r34_video/constant/page_routes.dart';
 import 'package:r34_video/provider/login_user_provider.dart';
 import 'package:r34_video/provider/settings_provider.dart';
 import 'package:r34_video/repo/cookie_store.dart';
+import 'package:r34_video/repo/site_registry.dart';
 import 'package:r34_video/theme/app_theme.dart';
 
 Future<void> main() async {
@@ -16,6 +17,9 @@ Future<void> main() async {
 
   // 先把 cookie 读出来，之后所有请求都从它取（避免首个请求漏带 cookie 被风控拦）。
   await CookieStore.load();
+
+  // 恢复上次选择的站点。
+  await SiteRegistry.instance.load();
 
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(

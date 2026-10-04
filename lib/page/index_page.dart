@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:r34_video/constant/tab_enum.dart';
+import 'package:r34_video/page/home_page.dart';
+import 'package:r34_video/page/my_info_page.dart';
+import 'package:r34_video/page/site/r34_xxx_home_page.dart';
+import 'package:r34_video/repo/site_registry.dart';
 import 'package:r34_video/theme/app_colors.dart';
 
 /// 底部导航 + PageView 主框架。
@@ -17,10 +21,40 @@ class _IndexPageState extends State<IndexPage> {
   final PageController _pageController = PageController();
   int _currentIndex = 0;
 
+  /// 两个站点内容形态完全不同，首页按当前站点二选一。
+  /// （“我的”页共用，因为账号/设置对两边都适用。）
+  late R34Site _site = SiteRegistry.instance.current;
+
+  @override
+  void initState() {
+    super.initState();
+    SiteRegistry.instance.addListener(_onSiteChanged);
+  }
+
+  void _onSiteChanged() {
+    if (mounted) {
+      setState(() => _site = SiteRegistry.instance.current);
+    }
+  }
+
   @override
   void dispose() {
+    SiteRegistry.instance.removeListener(_onSiteChanged);
     _pageController.dispose();
     super.dispose();
+  }
+
+  Widget _buildPages() {
+    return PageView(
+      controller: _pageController,
+      onPageChanged: (value) => setState(() => _currentIndex = value),
+      children: [
+        _site == R34Site.rule34xxx
+            ? const R34XxxHomePage()
+            : const HomePage(),
+        const MyInfoPage(),
+      ],
+    );
   }
 
   void _onSelect(int index) {
@@ -41,11 +75,7 @@ class _IndexPageState extends State<IndexPage> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
-      body: PageView(
-        controller: _pageController,
-        onPageChanged: (value) => setState(() => _currentIndex = value),
-        children: TabConst.pages,
-      ),
+      body: _buildPages(),
       bottomNavigationBar: DecoratedBox(
         decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: AppColors.divider)),

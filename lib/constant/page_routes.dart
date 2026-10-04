@@ -9,6 +9,8 @@ import 'package:r34_video/page/my_info_page.dart';
 import 'package:r34_video/page/search_edit_page.dart';
 import 'package:r34_video/page/search_result_page.dart';
 import 'package:r34_video/page/settings_page.dart';
+import 'package:r34_video/page/site/r34_xxx_detail_page.dart';
+import 'package:r34_video/page/site/r34_xxx_home_page.dart';
 import 'package:r34_video/player/player_page.dart';
 import 'package:r34_video/provider/search_edit_provider.dart';
 
@@ -23,6 +25,8 @@ class PageRoutes {
   static const String searchResultPage = '/searchResult';
   static const String settingsPage = '/settings';
   static const String cookieSettingsPage = '/cookieSettings';
+  static const String r34XxxHomePage = '/r34xxx';
+  static const String r34XxxDetailPage = '/r34xxx/detail';
 
   static final Map<String, WidgetBuilder> routes = {
     indexPage: (context) => const IndexPage(),
@@ -38,5 +42,7 @@ class PageRoutes {
     searchResultPage: (context) => const SearchResultPage(),
     settingsPage: (context) => const SettingsPage(),
     cookieSettingsPage: (context) => const CookieSettingsPage(),
+    r34XxxHomePage: (context) => const R34XxxHomePage(),
+    r34XxxDetailPage: (context) => const R34XxxDetailPage(),
   };
 }

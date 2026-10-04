@@ -5,6 +5,7 @@ import 'package:r34_video/page/component/common/app_select_tile.dart';
 import 'package:r34_video/provider/login_user_provider.dart';
 import 'package:r34_video/provider/settings_provider.dart';
 import 'package:r34_video/repo/cookie_store.dart';
+import 'package:r34_video/repo/site_registry.dart';
 import 'package:r34_video/theme/app_colors.dart';
 import 'package:r34_video/theme/app_dimens.dart';
 
@@ -57,6 +58,24 @@ class SettingsPage extends StatelessWidget {
               ),
             ],
           ),
+          const _SettingsSectionTitle('数据源'),
+          _SettingsCard(
+            children: [
+              _SettingsNavTile(
+                icon: Icons.dns_outlined,
+                title: '当前站点',
+                value: SiteRegistry.instance.current.displayName,
+                onTap: () => showSiteSwitcher(context),
+              ),
+              const _SettingsDivider(),
+              _SettingsNavTile(
+                icon: Icons.info_outline_rounded,
+                title: '站点说明',
+                value: '视频站 / 图片站',
+                onTap: () => _showSiteHelp(context),
+              ),
+            ],
+          ),
           const _SettingsSectionTitle('账户'),
           _SettingsCard(
             children: [
@@ -101,13 +120,37 @@ class SettingsPage extends StatelessWidget {
     );
   }
 
+  Future<void> _showSiteHelp(BuildContext context) async {
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('两个站点'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'rule34video：视频站。需要 cookie（站点有风控），登录/粘贴 cookie 后可用。\n'
+            '播放走内置 player。\n\n'
+            'rule34.xxx：图片站。走公开 JSON 接口，无需登录；标签搜索、看图。\n\n'
+            '两者内容与服务端完全独立，切换只影响“首页”这一栏；'
+            '账号与设置对两边都适用。',
+            style: TextStyle(fontSize: 13, height: 1.6),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('知道了'),
+          ),
+        ],
+      ),
+    );
+  }
+
   String _accountLabel(BuildContext context) {
     final login = context.watch<LoginUserProvider>();
     return login.displayName ?? '未登录';
   }
 
-  void _onAccountTap(BuildContext context) {
-    final login = context.read<LoginUserProvider>();
+  void _onAccountTap(BuildContext context) {    final login = context.read<LoginUserProvider>();
     Navigator.of(context).pushNamed(
       login.displayName == null ? PageRoutes.loginPage : PageRoutes.myInfoPage,
     );
