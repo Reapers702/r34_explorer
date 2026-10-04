@@ -28,6 +28,10 @@ class AppPagedGridController extends ChangeNotifier {
   bool _loading = false;
   bool _disposed = false;
 
+  /// 代数：每次 [reset] 递增。在途请求完成时若代数已变，说明是过期条件，
+  /// 结果直接丢弃，避免旧条件的响应覆盖新条件（表现为「点击搜索没效果」）。
+  int _generation = 0;
+
   /// 用 Object 存是为了避开实体类型的循环 import，取值处再 cast。
   final Map<int, List<Object>> _pages = {};
 
@@ -42,6 +46,10 @@ class AppPagedGridController extends ChangeNotifier {
 
   /// 条件变化：清空并回到第 1 页重新加载。
   Future<void> reset() async {
+    _generation++;
+    // 放行：即使上一个条件还在请求中，也要让新条件的请求发出去，
+    // 否则 loadPage 的 _loading 去重会把新搜索吞掉。
+    _loading = false;
     _pages.clear();
     _currentPage = initialPage;
     _pageCount = 1;
@@ -50,7 +58,7 @@ class AppPagedGridController extends ChangeNotifier {
   }
 
   Future<void> loadPage(int page) async {
-    if (_loading || _disposed) {
+    if (_disposed) {
       return;
     }
     if (_pages.containsKey(page)) {
@@ -58,14 +66,18 @@ class AppPagedGridController extends ChangeNotifier {
       _safeNotify();
       return;
     }
+    if (_loading) {
+      return;
+    }
 
+    final gen = _generation;
     _loading = true;
     _currentPage = page;
     _safeNotify();
 
     try {
       final result = await loader(page);
-      if (_disposed) {
+      if (_disposed || gen != _generation) {
         return;
       }
       _pages[page] = result.videos;

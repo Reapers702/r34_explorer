@@ -100,10 +100,10 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
     }
   }
 
-  /// tag 条件变化（增 / 删 / 清空）。
+  /// tag 条件变化（点联想 / 加号 / 回车 / 删除 / 清空）。
   ///
-  /// 添加 tag 时只更新已选 chips，**不**发搜索请求（等用户点「搜索」再批量搜，
-  /// 避免选几个 tag 浪费好几次请求）；删除/清空是缩小条件，立即刷新。
+  /// 只更新「待提交区」（已选 chips），**永不**自动发起搜索——
+  /// 搜索一律由用户点右侧「搜索」按钮发起（见 [_onSearchSubmit]）。
   Future<void> _onTagsChanged(String tags) async {
     final next = tags.trim().isEmpty
         ? const <String>[]
@@ -111,14 +111,10 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
     if (listEquals(next, _tags)) {
       return;
     }
-    final removing = next.length < _tags.length;
     setState(() => _tags = next);
-    if (removing) {
-      await _grid.reset();
-    }
   }
 
-  /// 显式搜索：按当前所有已选 tag 请求，并记一条搜索历史。
+  /// 显式搜索（点「搜索」按钮）：按当前所有已选 tag 请求，并记一条搜索历史。
   Future<void> _onSearchSubmit() async {
     FocusManager.instance.primaryFocus?.unfocus();
     _recordCurrentSearch();
@@ -139,14 +135,17 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
     });
   }
 
-  /// 点击「最近 tag」里的某一项：用它重新搜索。
+  /// 点击「最近 tag」里的某一项：把该组合放入「待提交区」，**不**自动搜索。
+  ///
+  /// 注意：**不能**一开始就 unfocus——失焦会让 `_searchFocused` 变 false、
+  /// 历史条从树上移除，正在点的条目被卸载导致 onTap 中断、后面代码不执行。
+  /// 所以先应用 tag，最后再收起历史条。
   Future<void> _applyTags(String tags) async {
-    FocusManager.instance.primaryFocus?.unfocus();
-    final next =
-        tags.trim().isEmpty ? const <String>[] : tags.trim().split(' ');
+    final next = tags.trim().isEmpty
+        ? const <String>[]
+        : tags.trim().split(' ');
     setState(() => _tags = next);
-    _recordCurrentSearch();
-    await _grid.reset();
+    FocusManager.instance.primaryFocus?.unfocus();
   }
 
   Future<void> _removeHistory(String tags) async {
@@ -261,12 +260,16 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
       ),
       child: Row(
         children: [
-          Text(
-            isEmpty ? '最新投稿' : '筛选结果',
-            style: const TextStyle(
-              fontSize: 12.5,
-              fontWeight: FontWeight.w500,
-              color: AppColors.textSecondary,
+          Expanded(
+            child: Text(
+              isEmpty ? '最新投稿' : '筛选结果',
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w500,
+                color: AppColors.textSecondary,
+              ),
             ),
           ),
           const Spacer(),
@@ -279,17 +282,18 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
     );
   }
 
-  /// 「最近 tag」横滑条：点击即搜，单条可删，尾部可清空。
+  /// 「最近 tag」横滑条：点击把组合放入待提交区，单条可删，尾部可清空。
   Widget _buildHistoryBar() {
     return SizedBox(
-      height: 34,
+      // 高度要给足，否则 chip 底部会被裁剪（之前 34 盖住一点）。
+      height: 42,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.page,
-          0,
+          2,
           AppSpacing.page,
-          AppSpacing.sm,
+          0,
         ),
         children: [
           ..._searchHistory.map(

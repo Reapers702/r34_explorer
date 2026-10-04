@@ -315,55 +315,61 @@ class _TagSearchBarState extends State<TagSearchBar> {
       targetAnchor: Alignment.bottomLeft,
       followerAnchor: Alignment.topLeft,
       offset: const Offset(0, 4),
-      child: Align(
-        alignment: Alignment.topLeft,
-        child: Material(
-          elevation: 4,
-          borderRadius: BorderRadius.circular(AppRadius.sm),
-          color: AppColors.surface,
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: width, maxHeight: 260),
-            child: ListView.separated(
-              shrinkWrap: true,
-              padding: EdgeInsets.zero,
-              itemCount: _suggestions.length,
-              separatorBuilder: (context, index) =>
-                  const Divider(height: 1, indent: 12, endIndent: 12),
-              itemBuilder: (context, index) {
-                final item = _suggestions[index];
-                return InkWell(
-                  onTap: () => _addTag(item.value),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: AppSpacing.md,
-                      vertical: AppSpacing.sm,
-                    ),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.tag_rounded,
-                            size: 14, color: AppColors.textHint),
-                        const SizedBox(width: AppSpacing.sm),
-                        Expanded(
-                          child: Text(
-                            item.display,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(fontSize: 13),
-                          ),
-                        ),
-                        if (item.countText != null)
-                          Text(
-                            item.countText!,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: AppColors.textHint,
+      // 不参与焦点请求：点击联想条目时不能抢走输入框焦点。
+      // 否则失焦触发 listener 同步收起 overlay，正在点的 InkWell 被卸载，
+      // onTap 丢失，表现为「点击联想完全没效果」。
+      child: FocusScope(
+        canRequestFocus: false,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: Material(
+            elevation: 4,
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+            color: AppColors.surface,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: width, maxHeight: 260),
+              child: ListView.separated(
+                shrinkWrap: true,
+                padding: EdgeInsets.zero,
+                itemCount: _suggestions.length,
+                separatorBuilder: (context, index) =>
+                    const Divider(height: 1, indent: 12, endIndent: 12),
+                itemBuilder: (context, index) {
+                  final item = _suggestions[index];
+                  return InkWell(
+                    onTap: () => _addTag(item.value),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.md,
+                        vertical: AppSpacing.sm,
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.tag_rounded,
+                              size: 14, color: AppColors.textHint),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: Text(
+                              item.display,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 13),
                             ),
                           ),
-                      ],
+                          if (item.countText != null)
+                            Text(
+                              item.countText!,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: AppColors.textHint,
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -414,6 +420,10 @@ class _TagInputField extends StatelessWidget {
               textInputAction: TextInputAction.done,
               onChanged: onChanged,
               onSubmitted: onSubmit,
+              // 禁用默认「点击外部即失焦」：点击联想条目时若先失焦，
+              // _focusNode 监听器会同步收起 overlay，正在点的条目被卸载，
+              // onTap 丢失，表现为「点击联想完全没效果」。
+              onTapOutside: (_) {},
               style: const TextStyle(
                 fontSize: 14,
                 color: AppColors.textPrimary,
