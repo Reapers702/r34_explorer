@@ -177,18 +177,22 @@ class _UnderlinedTextState extends State<UnderlinedText>
                     widget.isSelected ? FontWeight.w600 : FontWeight.w400,
               ),
             ),
-            Positioned.fill(
+            // 下划线：用 Positioned 的 bottom 做偏移。
+            // 注意不能用 Padding(bottom: 负值) —— RenderPadding 有
+            // padding.isNonNegative 断言，负数会直接抛异常（shifted_box.dart:134）。
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: -widget.spacing,
               child: AnimatedBuilder(
                 animation: _animation,
                 builder: (context, child) => Align(
-                  alignment: Alignment.bottomCenter,
+                  alignment: Alignment.center,
                   child: FractionallySizedBox(
                     widthFactor: _animation.value,
                     child: Padding(
-                      padding: EdgeInsets.only(
-                        bottom: -widget.spacing,
-                        left: widget.underlinePadding,
-                        right: widget.underlinePadding,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: widget.underlinePadding,
                       ),
                       child: Container(
                         height: widget.underlineHeight,
