@@ -60,6 +60,13 @@ class R34XxxRepo {
         return const R34XxxPage(posts: []);
       }
 
+      // 代理限流/抽风时常返回 200 + 空 body，直接 jsonDecode 会抛
+      // FormatException（就是之前日志里那个 Unexpected end of input）。
+      if (res.body.trim().isEmpty) {
+        LogUtil.warn('r34xxx: empty body from /posts (proxy likely rate-limited)');
+        return const R34XxxPage(posts: []);
+      }
+
       final dynamic decoded = jsonDecode(res.body);
       if (decoded is! List) {
         LogUtil.warn('r34xxx: unexpected /posts payload');
