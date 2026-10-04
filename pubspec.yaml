@@ -42,8 +42,6 @@ dependencies:
   html: ^0.15.5
   url_launcher: ^6.3.1
   cached_network_image: ^3.4.1
-  # 仅用于可选的图片缓存逃生舱（默认不介入），见 lib/util/app_image_cache.dart。
-  flutter_cache_manager: ^3.4.1
   android_intent_plus: ^5.2.2
   fluttertoast: ^8.2.10
   logger: ^2.5.0
