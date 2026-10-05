@@ -30,14 +30,11 @@ class _CommunityUserPageState extends State<CommunityUserPage>
   late TabController _tabController;
   Future<R34CommunityUser?>? _communityUserFuture;
 
-  bool _favoriteIsLoading = false;
-  bool _uploadIsLoading = false;
-
-  final List<R34CommunityVideo> _favoriteVideoList = [];
-  final List<R34CommunityVideo> _uploadVideoList = [];
-
-  final _favoriteScrollController = ScrollController();
-  final _uploadScrollController = ScrollController();
+  /// 一个云端子 Tab（浏览历史 / 喜欢的视频 / 上传的视频）。
+  ///
+  /// 「我的」【userSelf=true】三个都展示，顺序 浏览历史→喜欢的→上传；
+  /// 「作者」【userSelf=false】只有 上传 / 喜欢 两个。
+  late List<_UserTab> _tabs;
 
   int _getUid(BuildContext context) {
     if (_userId == null) {
@@ -54,39 +51,38 @@ class _CommunityUserPageState extends State<CommunityUserPage>
     return _userId!;
   }
 
-  Future<void> _loadData({int? index}) async {
-    final pageViewIndex = index ?? _tabController.index;
-    if (pageViewIndex == 0) {
-      setState(() {
-        _uploadIsLoading = true;
-      });
-      try {
-        List<R34CommunityVideo> data =
-            await R34CommunityRepo.getUserUploadVideo(
-                _getUid(context), _uploadVideoList.length);
-        if (data.isNotEmpty) {
-          _uploadVideoList.addAll(data);
-        }
-      } finally {
-        setState(() {
-          _uploadIsLoading = false;
-        });
+  List<_UserTab> _buildTabs() {
+    final userId = _getUid(context);
+    final upload = _UserTab(_UserTabKind.upload);
+    final favorite = _UserTab(_UserTabKind.favorite);
+    final history = _UserTab(_UserTabKind.history);
+    upload.fetcher = () async {
+      return R34CommunityRepo.getUserUploadVideo(userId, upload.length);
+    };
+    favorite.fetcher = () async {
+      return R34CommunityRepo.getUserFavoriteVideo(userId, favorite.length);
+    };
+    history.fetcher = () async {
+      return R34CommunityRepo.getUserWatchHistory();
+    };
+    return widget.userSelf
+        ? [history, favorite, upload]
+        : [upload, favorite];
+  }
+
+  void _loadMore(_UserTab tab) async {
+    if (tab.isLoading) {
+      return;
+    }
+    setState(() => tab.isLoading = true);
+    try {
+      final data = await tab.fetcher();
+      if (data.isNotEmpty) {
+        setState(() => tab.items.addAll(data));
       }
-    } else {
-      setState(() {
-        _favoriteIsLoading = true;
-      });
-      try {
-        List<R34CommunityVideo> data =
-            await R34CommunityRepo.getUserFavoriteVideo(
-                _getUid(context), _favoriteVideoList.length);
-        if (data.isNotEmpty) {
-          _favoriteVideoList.addAll(data);
-        }
-      } finally {
-        setState(() {
-          _favoriteIsLoading = false;
-        });
+    } finally {
+      if (mounted) {
+        setState(() => tab.isLoading = false);
       }
     }
   }
@@ -94,32 +90,31 @@ class _CommunityUserPageState extends State<CommunityUserPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabs = _buildTabs();
+    _tabController =
+        TabController(length: _tabs.length, vsync: this);
 
-    _favoriteScrollController.addListener(() {
-      if (_favoriteScrollController.position.pixels ==
-              _favoriteScrollController.position.maxScrollExtent &&
-          !_favoriteIsLoading) {
-        _loadData(index: 1);
-      }
-    });
-
-    _uploadScrollController.addListener(() {
-      if (_uploadScrollController.position.pixels ==
-              _uploadScrollController.position.maxScrollExtent &&
-          !_uploadIsLoading) {
-        _loadData(index: 0);
-      }
-    });
+    for (final tab in _tabs) {
+      tab.controller.addListener(() {
+        if (tab.controller.position.pixels ==
+            tab.controller.position.maxScrollExtent) {
+          _loadMore(tab);
+        }
+      });
+    }
 
     Future.microtask(() {
-      _loadData(index: 0);
-      _loadData(index: 1);
+      for (final tab in _tabs) {
+        _loadMore(tab);
+      }
     });
   }
 
   @override
   void dispose() {
+    for (final tab in _tabs) {
+      tab.controller.dispose();
+    }
     _tabController.dispose();
     super.dispose();
   }
@@ -151,48 +146,14 @@ class _CommunityUserPageState extends State<CommunityUserPage>
                 delegate: _TabBarDelegate(
                   tabController: _tabController,
                   communityUser: communityUser,
+                  tabs: _tabs,
                 ),
               ),
               // TabBarView
               SliverFillRemaining(
                 child: TabBarView(
                   controller: _tabController,
-                  children: [
-                    ListView.separated(
-                      controller: _uploadScrollController,
-                      itemCount:
-                          _uploadVideoList.length + (_uploadIsLoading ? 1 : 0),
-                      separatorBuilder: (context, index) =>
-                          const Divider(indent: 10),
-                      itemBuilder: (context, index) {
-                        if (index < _uploadVideoList.length) {
-                          final video = _uploadVideoList[index];
-                          return CommunityVideoBlock(video: video);
-                        } else {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                      },
-                    ),
-                    ListView.separated(
-                      controller: _favoriteScrollController,
-                      itemCount: _favoriteVideoList.length +
-                          (_favoriteIsLoading ? 1 : 0),
-                      separatorBuilder: (context, index) =>
-                          const Divider(indent: 10),
-                      itemBuilder: (context, index) {
-                        if (index < _favoriteVideoList.length) {
-                          final video = _favoriteVideoList[index];
-                          return CommunityVideoBlock(video: video);
-                        } else {
-                          return const Center(
-                            child: CircularProgressIndicator(),
-                          );
-                        }
-                      },
-                    ),
-                  ],
+                  children: [for (final tab in _tabs) _buildList(tab)],
                 ),
               ),
             ],
@@ -200,6 +161,64 @@ class _CommunityUserPageState extends State<CommunityUserPage>
         },
       ),
     );
+  }
+
+  Widget _buildList(_UserTab tab) {
+    return ListView.separated(
+      controller: tab.controller,
+      itemCount: tab.items.length + (tab.isLoading ? 1 : 0),
+      separatorBuilder: (context, index) => const Divider(indent: 10),
+      itemBuilder: (context, index) {
+        if (index < tab.items.length) {
+          return CommunityVideoBlock(video: tab.items[index]);
+        }
+        return const Center(child: CircularProgressIndicator());
+      },
+    );
+  }
+}
+
+/// “我的”页当前的用户信息头部。
+///
+/// 不再做随滚动缩放/移位的动画：桌面端观感差且状态栏适配麻烦。
+/// 高度固定（pinned 吸顶但不变形），头像直接用入站 [avatarUrl]，
+/// 无需等用户详情接口返回就能先展示。
+class _TabBarDelegate extends SliverPersistentHeaderDelegate {
+  final TabController tabController;
+  final R34CommunityUser? communityUser;
+  final List<_UserTab> tabs;
+
+  _TabBarDelegate({
+    required this.tabController,
+    required this.communityUser,
+    required this.tabs,
+  });
+
+  @override
+  Widget build(
+      BuildContext context, double shrinkOffset, bool overlapsContent) {
+    return Container(
+      height: 40,
+      color: AppColors.surface,
+      child: TabBar(
+        controller: tabController,
+        tabs: [
+          for (final tab in tabs)
+            Tab(text: tab.label(communityUser)),
+        ],
+      ),
+    );
+  }
+
+  @override
+  double get maxExtent => 40;
+
+  @override
+  double get minExtent => 40;
+
+  @override
+  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) {
+    return true;
   }
 }
 
@@ -328,37 +347,33 @@ class _UserHeaderDelegate extends SliverPersistentHeaderDelegate {
       true;
 }
 
-// TabBar 的代理类
-class _TabBarDelegate extends SliverPersistentHeaderDelegate {
-  final TabController tabController;
-  final R34CommunityUser? communityUser;
+/// 云端子 Tab 的类型，决定标题计数显示的来源。
+enum _UserTabKind { history, favorite, upload }
 
-  _TabBarDelegate({required this.tabController, this.communityUser});
+/// “我的”页用户信息头部下方的云端 Tab。
+class _UserTab {
+  final List<R34CommunityVideo> items = [];
+  final ScrollController controller = ScrollController();
+  bool isLoading = false;
 
-  @override
-  Widget build(
-      BuildContext context, double shrinkOffset, bool overlapsContent) {
-    return Container(
-      height: 40,
-      color: AppColors.surface,
-      child: TabBar(
-        controller: tabController,
-        tabs: [
-          Tab(text: '上传的视频 (${communityUser?.uploadVideoCount ?? "-"})'),
-          Tab(text: '喜欢的视频 (${communityUser?.favoriteVideoCount ?? "-"})'),
-        ],
-      ),
-    );
+  /// 分页取数：`this.length` 作为偏移。
+  late Future<List<R34CommunityVideo>> Function() fetcher;
+
+  final _UserTabKind kind;
+
+  _UserTab(this.kind);
+
+  String label(R34CommunityUser? user) {
+    switch (kind) {
+      case _UserTabKind.history:
+        return '浏览历史';
+      case _UserTabKind.favorite:
+        return '喜欢的视频 (${user?.favoriteVideoCount ?? "-"})';
+      case _UserTabKind.upload:
+        return '上传的视频 (${user?.uploadVideoCount ?? "-"})';
+    }
   }
 
-  @override
-  double get maxExtent => 40;
-
-  @override
-  double get minExtent => 40;
-
-  @override
-  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) {
-    return true;
-  }
+  /// 取数偏移：已经加载了多少条，作为下一屏起点。
+  int get length => items.length;
 }
