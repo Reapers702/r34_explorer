@@ -52,6 +52,7 @@ dependencies:
   flutter_settings_ui: ^3.0.1
   # 内置浏览器：网页登录后自动抓取 cookie（站点有 Cloudflare/DDG 风控，手填容易过期）。
   flutter_inappwebview: ^6.1.5
+  screen_brightness: ^2.1.11
 
 dev_dependencies:
   flutter_test:

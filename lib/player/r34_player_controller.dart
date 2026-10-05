@@ -56,6 +56,9 @@ class R34PlayerController extends ChangeNotifier {
 
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
+  Duration _buffer = Duration.zero;
+  int _width = 0;
+  int _height = 0;
   double _volume = 100;
   double _rate = 1.0;
   String? _error;
@@ -87,6 +90,20 @@ class R34PlayerController extends ChangeNotifier {
 
   Duration get duration => _duration;
 
+  /// 已缓冲到的位置。
+  Duration get buffer => _buffer;
+
+  /// 视频真实宽高比；未拿到元数据前按 16:9 兜底。
+  double get aspectRatio {
+    if (_width > 0 && _height > 0) {
+      return _width / _height;
+    }
+    return 16 / 9;
+  }
+
+  /// 竖屏（高大于宽）视频；元数据未知时按非竖屏处理。
+  bool get isPortrait => _width > 0 && _height > 0 && _height > _width;
+
   double get volume => _volume;
 
   double get rate => _rate;
@@ -98,6 +115,14 @@ class R34PlayerController extends ChangeNotifier {
       return 0;
     }
     return (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0);
+  }
+
+  /// 已缓冲位置占全片时长的比例（0~1），用于进度条高亮已加载区间。
+  double get bufferedProgress {
+    if (_duration.inMilliseconds <= 0) {
+      return 0;
+    }
+    return (_buffer.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0);
   }
 
   /// 当前清晰度 URL 对应的 HTTP 头。
@@ -140,6 +165,23 @@ class R34PlayerController extends ChangeNotifier {
       _player.stream.duration.listen((value) {
         _duration = value;
         _safeNotify();
+      }),
+      _player.stream.buffer.listen((value) {
+        _buffer = value;
+        _safeNotify();
+      }),
+      _player.stream.width.listen((value) {
+        // 元数据未就绪时为 null，保留上一次的已知值。
+        if (value != null) {
+          _width = value;
+          _safeNotify();
+        }
+      }),
+      _player.stream.height.listen((value) {
+        if (value != null) {
+          _height = value;
+          _safeNotify();
+        }
       }),
       _player.stream.volume.listen((value) {
         _volume = value;

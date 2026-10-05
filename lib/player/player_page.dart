@@ -11,6 +11,7 @@ import 'package:r34_video/provider/settings_provider.dart';
 import 'package:r34_video/repo/playback_progress_repo.dart';
 import 'package:r34_video/theme/app_colors.dart';
 import 'package:r34_video/theme/app_dimens.dart';
+import 'package:screen_brightness/screen_brightness.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// 应用内播放页。
@@ -32,13 +33,31 @@ class _PlayerPageState extends State<PlayerPage> {
   String? _detailUrl;
   Timer? _progressTimer;
 
-  /// 亮度手势（0~1，1 表示不遮罩）。
+  /// 当前应用窗口亮度（0~1），由左半屏竖直滑动调节。
   double _brightness = 1.0;
 
-  /// 当前竖向拖动手势作用在左（亮度）还是右（音量）半屏。
-  bool? _dragIsVolume;
-  double? _dragStartBrightness;
-  double? _dragStartVolume;
+  /// 手势锁定的主轴：横向调进度、竖向按左右半屏调音量/亮度。
+  Axis? _dragAxis;
+
+  /// 手势起始触点（局部坐标），用来判断主轴方向。
+  Offset? _dragOrigin;
+
+  /// 竖向拖动作用在右半屏（音量）还是左半屏（亮度）。
+  bool _dragIsVolume = false;
+
+  double _dragStartBrightness = 1.0;
+  double _dragStartVolume = 100;
+  double _dragStartProgress = 0;
+
+  /// 横向拖动时的进度预览（0~1），松手前不真正 seek。
+  double? _seekPreview;
+
+  /// 手势浮层内容与自动隐藏定时器。
+  ({IconData icon, String text})? _hud;
+  Timer? _hudTimer;
+
+  /// 判定手势主轴的最小平移距离，避免轻微抖动误触发。
+  static const double _dragSlop = 8;
 
   @override
   void didChangeDependencies() {
@@ -59,6 +78,7 @@ class _PlayerPageState extends State<PlayerPage> {
 
   Future<void> _initController(PlayerArgs rawArgs) async {
     final settings = context.read<SettingsProvider>();
+    unawaited(_readInitialBrightness());
 
     // 先读上次进度再建控制器，这样「续播起点」能在打开时一次性传入。
     final resume = rawArgs.detailUrl == null
@@ -110,22 +130,62 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   void dispose() {
     _progressTimer?.cancel();
+    _hudTimer?.cancel();
     _saveProgress();
+    // 退出页面还原窗口亮度，避免影响其他页面。
+    unawaited(_resetBrightness());
     if (_fullscreen) {
-      _leaveFullscreenSystemUi();
+      unawaited(_leaveFullscreenSystemUi());
     }
     _controller?.dispose();
     super.dispose();
   }
 
-  // ---- 系统 UI / 全屏 ----
-
-  void _enterFullscreenSystemUi() {
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  /// 读取当前应用窗口亮度作为手势起点；不支持时保持默认 1.0。
+  Future<void> _readInitialBrightness() async {
+    try {
+      final value = await ScreenBrightness.instance.application;
+      if (mounted) {
+        setState(() => _brightness = value.clamp(0.0, 1.0));
+      }
+    } catch (_) {
+      // 部分平台/模拟器不支持窗口亮度，忽略即可。
+    }
   }
 
-  void _leaveFullscreenSystemUi() {
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  Future<void> _setBrightness(double value) async {
+    try {
+      await ScreenBrightness.instance.setApplicationScreenBrightness(value);
+    } catch (_) {
+      // 忽略不支持窗口亮度时的异常。
+    }
+  }
+
+  Future<void> _resetBrightness() async {
+    try {
+      await ScreenBrightness.instance.resetApplicationScreenBrightness();
+    } catch (_) {
+      // 忽略不支持窗口亮度时的异常。
+    }
+  }
+
+  // ---- 系统 UI / 全屏 ----
+
+  /// 进入全屏：转横屏 + 沉浸式全屏。
+  Future<void> _enterFullscreenSystemUi() async {
+    await SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.landscapeLeft,
+      DeviceOrientation.landscapeRight,
+    ]);
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.immersiveSticky);
+  }
+
+  /// 退出全屏：转回竖屏 + 边到边。
+  Future<void> _leaveFullscreenSystemUi() async {
+    await SystemChrome.setPreferredOrientations(const [
+      DeviceOrientation.portraitUp,
+    ]);
+    await SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   }
 
   /// 呼起系统下载：把当前清晰度的直链交给系统下载器/浏览器保存。
@@ -154,15 +214,21 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   void _toggleFullscreen() {
+    final controller = _controller;
+    // 竖屏视频本身已铺满高度，横过来反而更小，直接提示。
+    if (!_fullscreen && controller != null && controller.isPortrait) {
+      _toast('竖屏视频，无需全屏');
+      return;
+    }
     setState(() {
       _fullscreen = !_fullscreen;
     });
     if (_fullscreen) {
-      _enterFullscreenSystemUi();
+      unawaited(_enterFullscreenSystemUi());
     } else {
-      _leaveFullscreenSystemUi();
+      unawaited(_leaveFullscreenSystemUi());
     }
-    _controller?.pokeControls();
+    controller?.pokeControls();
   }
 
   // ---- 交互 ----
@@ -307,58 +373,68 @@ class _PlayerPageState extends State<PlayerPage> {
         if (!_fullscreen)
           SafeArea(
             bottom: false,
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: _buildVideoSurface(controller),
+            child: Center(
+              child: AspectRatio(
+                aspectRatio: controller.aspectRatio,
+                child: _buildVideoSurface(controller),
+              ),
             ),
           )
         else
           _buildVideoSurface(controller),
-        _buildBrightnessOverlay(controller),
         _buildTouchLayer(controller),
-        if (controller.error != null)
-          _buildErrorLayer(controller)
-        else if (!controller.initialized || controller.buffering)
-          const Center(
-            child: SizedBox(
-              width: 34,
-              height: 34,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.5,
-                color: Colors.white,
-              ),
-            ),
-          ),
-        if (controller.controlsVisible || controller.error != null)
-          _buildControls(controller),
+        _buildGestureHud(),
       ],
     );
   }
 
+  /// 视频画面本身；非全屏时外层再套一层按真实宽高比的 `AspectRatio`。
   Widget _buildVideoSurface(R34PlayerController controller) {
-    return AspectRatio(
-      aspectRatio: 16 / 9,
-      child: ColoredBox(
-        color: AppColors.playerBackground,
-        child: Video(
-          controller: controller.videoController,
-          controls: NoVideoControls,
-          fit: BoxFit.contain,
-        ),
+    return ColoredBox(
+      color: AppColors.playerBackground,
+      child: Video(
+        controller: controller.videoController,
+        controls: NoVideoControls,
+        fit: BoxFit.contain,
       ),
     );
   }
 
-  /// 竖直滑动调亮度：只覆盖视频区域，黑色遮罩模拟变暗（不引额外依赖）。
-  Widget _buildBrightnessOverlay(R34PlayerController controller) {
-    if (_brightness >= 0.999) {
+  /// 手势浮层：滑动时在屏幕中央显示亮度 / 音量 / 进度反馈。
+  Widget _buildGestureHud() {
+    final hud = _hud;
+    if (hud == null) {
       return const SizedBox.shrink();
     }
     return Positioned.fill(
       child: IgnorePointer(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: Colors.black.withValues(alpha: (1 - _brightness).clamp(0.0, 1.0)),
+        child: Center(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: Colors.black.withValues(alpha: 0.62),
+              borderRadius: BorderRadius.circular(AppRadius.md),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: AppSpacing.lg,
+                vertical: AppSpacing.sm,
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(hud.icon, color: AppColors.onDark, size: 20),
+                  const SizedBox(width: AppSpacing.sm),
+                  Text(
+                    hud.text,
+                    style: const TextStyle(
+                      color: AppColors.onDark,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
           ),
         ),
       ),
@@ -366,12 +442,15 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   /// 整屏的手势层：单击显隐控件，双击播放/暂停，连点两侧快进退。
-  /// 左侧竖直滑动调亮度，右侧竖直滑动调音量。
+  /// 左半屏竖直滑动调亮度，右半屏竖直滑动调音量，横向滑动调进度。
+  ///
+  /// 控件作为手势层的子节点，因此按钮、进度条上的点按/拖动由它们自己消费，
+  /// 其余空白区域仍归手势层——控件显示时也能正常滑动。
   Widget _buildTouchLayer(R34PlayerController controller) {
     return Positioned.fill(
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: controller.pokeControls,
+        onTap: controller.toggleControls,
         onDoubleTap: controller.playOrPause,
         onDoubleTapDown: (details) {
           final width = MediaQuery.of(context).size.width;
@@ -381,36 +460,119 @@ class _PlayerPageState extends State<PlayerPage> {
             controller.skip(10);
           }
         },
-        onVerticalDragStart: (details) {
-          final width = MediaQuery.of(context).size.width;
-          final isVolume = details.localPosition.dx >= width * 0.5;
-          _dragIsVolume = isVolume;
-          _dragStartBrightness = _brightness;
-          _dragStartVolume = controller.volume;
-        },
-        onVerticalDragUpdate: (details) {
-          final height = MediaQuery.of(context).size.height;
-          // 手指上滑 -> 增大（detail.delta.dy 为负）。
-          final primary = details.primaryDelta;
-          final delta = primary == null ? 0.0 : -primary;
-          if (_dragIsVolume == true) {
-            final start = _dragStartVolume ?? controller.volume;
-            final next = (start + delta / height * 200).clamp(0.0, 100.0);
-            controller.setVolume(next);
-          } else if (_dragIsVolume == false) {
-            final start = _dragStartBrightness ?? _brightness;
-            final next = (start + delta / height * 200 / 100).clamp(0.0, 1.0);
-            setState(() => _brightness = next);
-          }
-        },
-        onVerticalDragEnd: (_) {
-          _dragIsVolume = null;
-          _dragStartBrightness = null;
-          _dragStartVolume = null;
-        },
-        child: const SizedBox.expand(),
+        onPanStart: (details) => _onDragStart(details.localPosition),
+        onPanUpdate: (details) => _onDragUpdate(details.localPosition),
+        onPanEnd: (_) => _onDragEnd(),
+        onPanCancel: _onDragEnd,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            if (controller.error != null)
+              _buildErrorLayer(controller)
+            else if (!controller.initialized || controller.buffering)
+              const Center(
+                child: SizedBox(
+                  width: 34,
+                  height: 34,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            if (controller.controlsVisible || controller.error != null)
+              _buildControls(controller),
+          ],
+        ),
       ),
     );
+  }
+
+  void _onDragStart(Offset position) {
+    final controller = _controller;
+    _dragAxis = null;
+    _dragOrigin = position;
+    _dragIsVolume = position.dx >= MediaQuery.of(context).size.width * 0.5;
+    _dragStartBrightness = _brightness;
+    _dragStartVolume = controller?.volume ?? 100;
+    _dragStartProgress = controller?.progress ?? 0;
+    _seekPreview = null;
+  }
+
+  void _onDragUpdate(Offset position) {
+    final controller = _controller;
+    final origin = _dragOrigin;
+    if (controller == null || origin == null) {
+      return;
+    }
+    final total = position - origin;
+    if (_dragAxis == null) {
+      if (total.dx.abs() < _dragSlop && total.dy.abs() < _dragSlop) {
+        return;
+      }
+      _dragAxis = total.dx.abs() >= total.dy.abs()
+          ? Axis.horizontal
+          : Axis.vertical;
+    }
+
+    final size = MediaQuery.of(context).size;
+    if (_dragAxis == Axis.horizontal) {
+      final next = (_dragStartProgress + total.dx / size.width).clamp(0.0, 1.0);
+      setState(() => _seekPreview = next);
+      final duration = controller.duration;
+      _showHud(
+        Icons.fast_forward_rounded,
+        '${_formatDuration(duration * next)} / ${_formatDuration(duration)}',
+      );
+      return;
+    }
+
+    // 手指上滑为增大（竖直位移为负），满屏高度约对应 100%。
+    final delta = -total.dy / size.height * 100;
+    if (_dragIsVolume) {
+      final next = (_dragStartVolume + delta).clamp(0.0, 100.0);
+      controller.setVolume(next);
+      _showHud(
+        next <= 0 ? Icons.volume_off_rounded : Icons.volume_up_rounded,
+        '音量 ${next.round()}%',
+      );
+    } else {
+      final next = (_dragStartBrightness + delta / 100).clamp(0.05, 1.0);
+      setState(() => _brightness = next);
+      unawaited(_setBrightness(next));
+      _showHud(
+        next <= 0.3
+            ? Icons.brightness_low_rounded
+            : Icons.brightness_high_rounded,
+        '亮度 ${(next * 100).round()}%',
+      );
+    }
+  }
+
+  void _onDragEnd() {
+    final controller = _controller;
+    final preview = _seekPreview;
+    if (_dragAxis == Axis.horizontal && preview != null && controller != null) {
+      controller.seekToFraction(preview);
+    }
+    _dragAxis = null;
+    _dragOrigin = null;
+    _seekPreview = null;
+    _scheduleHudHide();
+  }
+
+  void _showHud(IconData icon, String text) {
+    _hudTimer?.cancel();
+    setState(() => _hud = (icon: icon, text: text));
+  }
+
+  void _scheduleHudHide() {
+    _hudTimer?.cancel();
+    _hudTimer = Timer(const Duration(milliseconds: 700), () {
+      if (mounted && _hud != null) {
+        setState(() => _hud = null);
+      }
+    });
   }
 
   Widget _buildErrorLayer(R34PlayerController controller) {
@@ -557,6 +719,9 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   Widget _buildBottomBar(R34PlayerController controller) {
+    final progress = _seekPreview ?? controller.progress;
+    final buffered = controller.bufferedProgress;
+    final secondary = buffered > progress ? buffered : progress;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.md,
@@ -570,7 +735,11 @@ class _PlayerPageState extends State<PlayerPage> {
           Row(
             children: [
               Text(
-                _formatDuration(controller.position),
+                _formatDuration(
+                  _seekPreview == null
+                      ? controller.position
+                      : controller.duration * _seekPreview!,
+                ),
                 style: const TextStyle(
                   color: AppColors.onDarkSecondary,
                   fontSize: 11,
@@ -582,6 +751,8 @@ class _PlayerPageState extends State<PlayerPage> {
                     trackHeight: 2.5,
                     activeTrackColor: AppColors.primary,
                     inactiveTrackColor: Colors.white24,
+                    // 已缓冲区间：比未加载部分亮，但比已播放部分暗。
+                    secondaryActiveTrackColor: Colors.white38,
                     thumbColor: AppColors.primary,
                     overlayColor: AppColors.primary.withValues(alpha: 0.2),
                     thumbShape: const RoundSliderThumbShape(
@@ -589,7 +760,8 @@ class _PlayerPageState extends State<PlayerPage> {
                     ),
                   ),
                   child: Slider(
-                    value: controller.progress,
+                    value: progress,
+                    secondaryTrackValue: secondary,
                     onChanged: (value) => controller.seekToFraction(value),
                   ),
                 ),
