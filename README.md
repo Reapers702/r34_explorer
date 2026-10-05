@@ -106,10 +106,56 @@ GET https://rule34-api.netlify.app/count?tags=...                          → 2
   本站在 tag 里**保留空格**（`ada wong (resident evil)`），把 `title` 原样当关键词搜索即可精确命中
   （实测 `SEARCH("ada wong (resident evil)")` 首条即对应视频）。
 * 播放：内置 [media_kit](https://github.com/media-kit/media-kit)（libmpv 内核），
-  支持清晰度切换 / 倍速 / 音量 / 全屏 / 双击快进退。
+  支持清晰度切换 / 倍速 / 音量 / 亮度手势 / 进度手势 / 全屏 / 双击快进退，
+  细节见下文「内置播放器（libmpv）」。
   播放地址需要带 `Referer` / `User-Agent`（站点 `get_file` 会 302 到 CDN 的
   `remote_control.php`，缺头会 403）。
 * 不打算内置浏览器时，可在「设置 → Cookie 与登录」里**手动粘贴 cookie**。
+
+### 内置播放器（libmpv）
+
+内核封装在 `lib/player/r34_player_controller.dart`，页面在 `lib/player/player_page.dart`。
+
+**手势**：左半屏上下滑调**应用窗口亮度**（`screen_brightness`，只改本 App 窗口、
+无需权限、退出自动还原）、右半屏上下滑调音量、横向滑动预览进度（**松手才真正
+seek**）、单击空白收起控件、双击左右 30% 快退/快进 10 秒。滑动时屏幕中央浮出
+HUD，松手后自动隐藏。手势层**包裹**控件层，所以控件显示时手势依然可用。
+
+**进度条的「已缓冲」高亮**：`player.stream.buffer` 对应 mpv 的 `demuxer-cache-time`，
+是**缓存窗口的末尾**、而非「从头累计下载量」——seek 后旧缓存会被丢弃，窗口整体挪到
+新位置。因此控制器额外维护 `_bufferStart`（seek 时同步挪动、`buffer` 回退时跟随当前
+位置），进度条按 `[起点, 末尾]` 区间自绘（`_PlayerProgressBar`）；不用 `Slider` 是因为
+它只能表达「从 0 到某个值」，画不出这种漂移的区间。
+
+**缓存的两个方向（最容易混淆）**：
+
+| 参数 | 方向 | 管什么 |
+|---|---|---|
+| `demuxer-max-bytes` | 前向 | 播放头**前面**提前下载多少 → 抗卡顿 |
+| `demuxer-max-back-bytes` | 后向 | 播放头**后面**已播过多少 → 往回拖要不要重新加载 |
+
+media_kit 的 `PlayerConfiguration.bufferSize` 会被**同时**喂给这两个参数，于是前后向
+绑死、内存翻倍。本项目 `bufferSize` 只给 32MB（前向足够），再在打开流**之前**绕到
+底层 libmpv 单独放宽后向：
+
+```dart
+// lib/player/r34_player_controller.dart → _configureDiskCache()
+await platform.setProperty('cache-on-disk', 'yes');
+await platform.setProperty('demuxer-cache-dir', dir.path);
+await platform.setProperty('demuxer-max-back-bytes', '$_backBufferBytes');
+```
+
+* `cache-on-disk` media_kit 本就硬编码为 `yes`，但它**没设** `demuxer-cache-dir`，
+  落盘位置交给 mpv 默认值，在 Android 上不保证可写；这里显式指到 App 缓存目录下的
+  `mpv_cache/`。
+* 后向上限见 `_backBufferBytes`（当前 512MB，1080p 下约能回退 8~9 分钟）。开启磁盘
+  缓存后内存占用与上限解耦，所以可以远大于前向。
+* 仅**会话级**缓存：退出播放页即由 mpv 释放，**不跨会话保留**。要做到「下次打开缓存
+  还在」，需要自建本地 HTTP 代理 + 分片缓存（未实现）。
+* 以上属性设置失败会静默退回默认内存缓存，不影响播放。
+* 这些是 mpv 的**选项**，通过 `NativePlayer.setProperty` 在运行时设置，属于绕过
+  media_kit 公开 API 的做法（`PlayerConfiguration` 未暴露）。相关改动请在**真机**上
+  确认 `<app 缓存目录>/mpv_cache/` 确有文件生成。
 
 ### 两个站的 tag 规则正好相反（写代码时最容易错）
 
@@ -254,6 +300,8 @@ cookie 过期。到「设置 → Cookie 与登录」：
 | 依赖 | 用途 |
 |---|---|
 | `media_kit` / `media_kit_video` / `media_kit_libs_video` | 内置播放器（libmpv） |
+| `screen_brightness` | 播放页左半屏手势调应用窗口亮度 |
+| `path_provider` | 取 App 缓存目录，供播放器磁盘缓存落盘 |
 | `cached_network_image` | 图片加载与磁盘缓存 |
 | `flutter_inappwebview` | 内置浏览器登录抓 cookie |
 | `provider` | 状态管理 |
