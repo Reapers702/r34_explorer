@@ -59,6 +59,33 @@ void main() {
       expect(query['from_videos'], '03');
       expect(query['from_albums'], '03');
     });
+
+    test('空关键词 + 附加 Tag：q 传空串但条件照下发', () {
+      final query = R34SearchRepo.buildSearchQuery(
+        R34SearchRequest(
+          keywordType: SearchKeywordType.keyword,
+          keyword: '',
+          tagIds: ['369'],
+        ),
+      );
+      expect(query.containsKey('q'), isTrue);
+      expect(query['q'], '');
+      expect(query['tag_ids'], 'all,369');
+    });
+
+    test('空关键词的 path 是 /search/（站点 data-videosUrl），非空则带 slug', () {
+      R34SearchRequest req({required String keyword, List<String> tagIds = const []}) {
+        return R34SearchRequest(
+          keywordType: SearchKeywordType.keyword,
+          keyword: keyword,
+          tagIds: tagIds,
+        );
+      }
+      expect(R34SearchRepo.pathOf(req(keyword: '', tagIds: ['369'])), '/search/');
+      expect(R34SearchRepo.pathOf(req(keyword: 'tifa')), '/search/tifa/');
+      expect(R34SearchRepo.pathOf(req(keyword: 'pi pi')), '/search/pi-pi/');
+      expect(R34SearchRepo.pathOf(req(keyword: 'a-b')), '/search/a--b/');
+    });
   });
 
   group('联想 JSON 解析', () {

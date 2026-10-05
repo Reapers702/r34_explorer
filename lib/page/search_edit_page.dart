@@ -52,12 +52,16 @@ class _SearchEditPageState extends State<SearchEditPage> {
 
   void _submit(String rawText) {
     final text = rawText.trim();
-    if (text.isEmpty) {
-      _toast('请输入要搜索的内容');
+
+    // 关键词可为空：仅用 Tag / 创作者 / 分类 / 屏蔽条件也能搜（原站允许）。
+    if (text.isEmpty && _noCondition()) {
+      _toast('请至少输入关键词，或添加一个 Tag / 创作者 / 分类 / 屏蔽条件');
       return;
     }
 
-    context.read<SearchEditProvider>().addSearchHistory(text);
+    if (text.isNotEmpty) {
+      context.read<SearchEditProvider>().addSearchHistory(text);
+    }
     Navigator.of(context).pushNamed(
       PageRoutes.searchResultPage,
       arguments: SearchResultPageArgs(
@@ -69,6 +73,12 @@ class _SearchEditPageState extends State<SearchEditPage> {
       ),
     );
   }
+
+  bool _noCondition() =>
+      _selectedTags.isEmpty &&
+      _selectedArtists.isEmpty &&
+      _selectedCategories.isEmpty &&
+      _selectedBlacklist.isEmpty;
 
   /// 弹出通用联想选择对话框，选中的项加入对应条件列表。
   Future<void> _pickCondition<T>({

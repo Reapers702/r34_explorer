@@ -164,17 +164,20 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                       child: Wrap(
                         spacing: AppSpacing.sm,
                         runSpacing: AppSpacing.sm,
-                        children: VideoDateAdded.descriptionMap.entries
-                            .map(
-                              (entry) => _FilterRadioChip(
-                                label: entry.key,
-                                selected: _draft.dateAdded == entry.value,
-                                onTap: () => _update(
-                                  (draft) => draft.dateAdded = entry.value,
-                                ),
-                              ),
-                            )
-                            .toList(),
+                        children: [
+                          ...VideoDateAdded.descriptionMap.entries.map(
+                            (entry) => _FilterRadioChip(
+                              label: entry.key,
+                              selected: _draft.dateAdded == entry.value,
+                              onTap: () => _update((draft) {
+                                draft.dateAdded = entry.value;
+                                draft.customFromDays = null;
+                                draft.customToDays = null;
+                              }),
+                            ),
+                          ),
+                          _buildCustomDateChip(),
+                        ],
                       ),
                     ),
                     const SectionHeader(
@@ -331,6 +334,120 @@ class _FilterBottomSheetState extends State<FilterBottomSheet> {
                       draft.duration = VideoDuration.custom;
                       draft.customFromSeconds = from;
                       draft.customToSeconds = to;
+                    });
+                    Navigator.of(dialogContext).pop(true);
+                  },
+                  child: const Text('确定'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    fromController.dispose();
+    toController.dispose();
+
+    if (confirmed == true) {
+      setState(() {});
+    }
+  }
+
+  Widget _buildCustomDateChip() {
+    final isCustom = _draft.dateAdded == VideoDateAdded.custom;
+    final label = isCustom ? _customDateLabel() : '自定义';
+    return _FilterRadioChip(
+      label: label,
+      selected: isCustom,
+      icon: isCustom ? Icons.edit_outlined : null,
+      onTap: _editCustomDate,
+    );
+  }
+
+  String _customDateLabel() {
+    String fmt(int? days) => (days == null || days <= 0) ? '不限' : '$days天';
+    return '${fmt(_draft.customFromDays)}前 ~ ${fmt(_draft.customToDays)}前';
+  }
+
+  Future<void> _editCustomDate() async {
+    final fromController = TextEditingController(
+      text: _draft.customFromDays?.toString() ?? '',
+    );
+    final toController = TextEditingController(
+      text: _draft.customToDays?.toString() ?? '',
+    );
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        String? errorText;
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('自定义上传时间'),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    '单位：天，留空表示不限制（如 90 到 7 天前）',
+                    style: TextStyle(fontSize: 12, color: AppColors.textHint),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: fromController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: '最早'),
+                        ),
+                      ),
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: AppSpacing.sm),
+                        child: Text('~'),
+                      ),
+                      Expanded(
+                        child: TextField(
+                          controller: toController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(labelText: '最近'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (errorText != null) ...[
+                    const SizedBox(height: AppSpacing.sm),
+                    Text(
+                      errorText!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.error,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(false),
+                  child: const Text('取消'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    final from = int.tryParse(fromController.text.trim());
+                    final to = int.tryParse(toController.text.trim());
+                    if (from != null && to != null && from <= to) {
+                      setDialogState(() {
+                        errorText = '最早天数应大于最近天数（旧 → 新）';
+                      });
+                      return;
+                    }
+                    _update((draft) {
+                      draft.dateAdded = VideoDateAdded.custom;
+                      draft.customFromDays = from;
+                      draft.customToDays = to;
                     });
                     Navigator.of(dialogContext).pop(true);
                   },

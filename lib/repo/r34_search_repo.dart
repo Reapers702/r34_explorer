@@ -36,7 +36,7 @@ class R34SearchRepo {
     final parseType = _parseTypeMap[request.keywordType] ??
         ParseType.searchKeyword;
 
-    final path = _pathOf(request);
+    final path = pathOf(request);
 
     final query = buildSearchQuery(request)
       ..['_'] = '${DateTime.now().millisecondsSinceEpoch}';
@@ -285,12 +285,19 @@ class R34SearchRepo {
     }
   }
 
-  /// 站点把空格换成 `-`，`-` 换成 `--`。
-  static String _pathOf(R34SearchRequest request) {
+  /// 组装搜索结果页 path。
+  ///
+  /// 站点把空格换成 `-`，`-` 换成 `--`。**空关键词**（仅用 Tag/创作者/分类/
+  /// 屏蔽条件搜索）时返回 `/search/`（站点的 `data-videosUrl`），
+  /// 附加条件由 [buildSearchQuery] 以 query 形式带上。
+  static String pathOf(R34SearchRequest request) {
     switch (request.keywordType) {
       case SearchKeywordType.keyword:
-        final slug =
-            request.keyword.replaceAll('-', '--').replaceAll(' ', '-');
+        final keyword = request.keyword.trim();
+        if (keyword.isEmpty) {
+          return '/search/';
+        }
+        final slug = keyword.replaceAll('-', '--').replaceAll(' ', '-');
         return '/search/$slug/';
       case SearchKeywordType.tag:
         return '/tags/${request.keyword}/';

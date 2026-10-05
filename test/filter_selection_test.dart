@@ -41,4 +41,69 @@ void main() {
       expect(filter.filterEquals(cleared), isFalse);
     });
   });
+
+  group('FilterSelection 上传时间自定义档位', () {
+    test('custom 档位把 from/to 天数映射为 post_date_from / post_date_to', () {
+      final filter = FilterSelection(
+        dateAdded: VideoDateAdded.custom,
+        customFromDays: 90,
+        customToDays: 7,
+      );
+      expect(filter.queryParams['post_date_from'], '90');
+      expect(filter.queryParams['post_date_to'], '7');
+    });
+
+    test('非 custom 档位仍只发单向 post_date_from，不发 to', () {
+      final filter = FilterSelection(dateAdded: VideoDateAdded.pastWeek);
+      expect(filter.queryParams['post_date_from'], '7');
+      expect(filter.queryParams.containsKey('post_date_to'), isFalse);
+    });
+
+    test('自定义留空一侧不输出对应参数', () {
+      final fromOnly = FilterSelection(
+        dateAdded: VideoDateAdded.custom,
+        customFromDays: 90,
+      );
+      expect(fromOnly.queryParams['post_date_from'], '90');
+      expect(fromOnly.queryParams.containsKey('post_date_to'), isFalse);
+
+      final toOnly = FilterSelection(
+        dateAdded: VideoDateAdded.custom,
+        customToDays: 7,
+      );
+      expect(toOnly.queryParams.containsKey('post_date_from'), isFalse);
+      expect(toOnly.queryParams['post_date_to'], '7');
+    });
+
+    test('duplicate / filterEquals / copyWith 传递自定义天数', () {
+      final filter = FilterSelection(
+        dateAdded: VideoDateAdded.custom,
+        customFromDays: 90,
+        customToDays: 7,
+      );
+      expect(filter.duplicate().customFromDays, 90);
+      expect(filter.duplicate().customToDays, 7);
+      expect(filter.filterEquals(filter.duplicate()), isTrue);
+
+      final diff = FilterSelection(
+        dateAdded: VideoDateAdded.custom,
+        customFromDays: 30,
+        customToDays: 7,
+      );
+      expect(filter.filterEquals(diff), isFalse);
+
+      final cleared = filter.copyWith(clearCustomDate: true);
+      expect(cleared.customFromDays, isNull);
+      expect(cleared.customToDays, isNull);
+    });
+
+    test('custom 的 activeLabels 展示天数范围', () {
+      final filter = FilterSelection(
+        dateAdded: VideoDateAdded.custom,
+        customFromDays: 90,
+        customToDays: 7,
+      );
+      expect(filter.activeLabels, contains('90 ~ 7 天前'));
+    });
+  });
 }

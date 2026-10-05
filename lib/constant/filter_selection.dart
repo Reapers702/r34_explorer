@@ -103,6 +103,7 @@ enum VideoDateAdded {
   pastMonth,
   past3Month,
   pastYear,
+  custom,
   ;
 
   static final descriptionMap = LinkedHashMap.of({
@@ -116,6 +117,7 @@ enum VideoDateAdded {
   });
 
   /// 传给服务端的天数，`null` 表示不限制。
+  /// [custom] 需要外部补充 [FilterSelection.customFromDays] / [customToDays]。
   String? get days {
     return {
       past24H: '1',
@@ -128,7 +130,7 @@ enum VideoDateAdded {
   }
 
   String get desc => descriptionMap.entries
-      .firstWhere((e) => e.value == this)
+      .firstWhere((e) => e.value == this, orElse: () => const MapEntry('自定义', custom))
       .key;
 }
 
@@ -148,6 +150,11 @@ class FilterSelection {
   int? customFromSeconds;
   int? customToSeconds;
 
+  /// 自定义上传时间区间，单位天数，仅 [VideoDateAdded.custom] 时生效。
+  /// 对应站点 `post_date_from`（旧）/ `post_date_to`（新）。
+  int? customFromDays;
+  int? customToDays;
+
   FilterSelection({
     this.sortType = HomeSortEnum.mostViewed,
     this.duration = VideoDuration.all,
@@ -155,6 +162,8 @@ class FilterSelection {
     this.verifiedUploaders = false,
     this.customFromSeconds,
     this.customToSeconds,
+    this.customFromDays,
+    this.customToDays,
   });
 
   /// 时长区间的秒数，兼容自定义档位。
@@ -174,6 +183,23 @@ class FilterSelection {
     return duration.range;
   }
 
+  /// 上传时间的（from 天数, to 天数），兼容自定义档位。
+  ///
+  /// 返回 `null` 表示完全不限制。单向快捷档只有 [e0]；自定义才可能双端，
+  /// 且任一端留空/非正数则不输出对应参数。
+  ({String? from, String? to}) get dateRange {
+    if (dateAdded == VideoDateAdded.custom) {
+      final from = (customFromDays == null || customFromDays! <= 0)
+          ? null
+          : '${customFromDays!}';
+      final to = (customToDays == null || customToDays! <= 0)
+          ? null
+          : '${customToDays!}';
+      return (from: from, to: to);
+    }
+    return (from: dateAdded.days, to: null);
+  }
+
   /// 服务端可识别的筛选查询参数。
   ///
   /// 这几个参数站点是认的（首页一直是靠 cookie 传同样的键，搜索接口用 query 也一样生效），
@@ -187,8 +213,12 @@ class FilterSelection {
     if (range?.to != null) {
       params['duration_to'] = range!.to!;
     }
-    if (dateAdded.days != null) {
-      params['post_date_from'] = dateAdded.days!;
+    final date = dateRange;
+    if (date.from != null) {
+      params['post_date_from'] = date.from!;
+    }
+    if (date.to != null) {
+      params['post_date_to'] = date.to!;
     }
     if (verifiedUploaders) {
       params['flag2'] = '1';
@@ -199,7 +229,8 @@ class FilterSelection {
   /// 时长/上传时间/认证上传者是否被限制过。
   bool get hasSecondaryFilter =>
       durationRange != null ||
-      dateAdded != VideoDateAdded.all ||
+      dateRange.from != null ||
+      dateRange.to != null ||
       verifiedUploaders;
 
   /// 是否有自定义时长区间。
@@ -217,7 +248,12 @@ class FilterSelection {
     } else if (duration != VideoDuration.all) {
       labels.add(duration.desc);
     }
-    if (dateAdded != VideoDateAdded.all) {
+    if (dateAdded == VideoDateAdded.custom) {
+      final date = dateRange;
+      final from = date.from ?? '不限';
+      final to = date.to ?? '不限';
+      labels.add('$from ~ $to 天前');
+    } else if (dateAdded != VideoDateAdded.all) {
       labels.add(dateAdded.desc);
     }
     if (verifiedUploaders) {
@@ -250,6 +286,8 @@ class FilterSelection {
       verifiedUploaders: verifiedUploaders,
       customFromSeconds: customFromSeconds,
       customToSeconds: customToSeconds,
+      customFromDays: customFromDays,
+      customToDays: customToDays,
     );
   }
 
@@ -263,7 +301,9 @@ class FilterSelection {
         dateAdded == other.dateAdded &&
         verifiedUploaders == other.verifiedUploaders &&
         customFromSeconds == other.customFromSeconds &&
-        customToSeconds == other.customToSeconds;
+        customToSeconds == other.customToSeconds &&
+        customFromDays == other.customFromDays &&
+        customToDays == other.customToDays;
   }
 
   FilterSelection copyWith({
@@ -273,7 +313,10 @@ class FilterSelection {
     bool? verifiedUploaders,
     int? customFromSeconds,
     int? customToSeconds,
+    int? customFromDays,
+    int? customToDays,
     bool clearCustomDuration = false,
+    bool clearCustomDate = false,
   }) {
     return FilterSelection(
       sortType: sortType ?? this.sortType,
@@ -284,6 +327,10 @@ class FilterSelection {
           clearCustomDuration ? null : (customFromSeconds ?? this.customFromSeconds),
       customToSeconds:
           clearCustomDuration ? null : (customToSeconds ?? this.customToSeconds),
+      customFromDays:
+          clearCustomDate ? null : (customFromDays ?? this.customFromDays),
+      customToDays:
+          clearCustomDate ? null : (customToDays ?? this.customToDays),
     );
   }
 
