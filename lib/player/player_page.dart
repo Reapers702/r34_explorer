@@ -550,15 +550,24 @@ class _PlayerPageState extends State<PlayerPage> {
   }
 
   void _onDragEnd() {
-    final controller = _controller;
-    final preview = _seekPreview;
-    if (_dragAxis == Axis.horizontal && preview != null && controller != null) {
-      controller.seekToFraction(preview);
+    if (_dragAxis == Axis.horizontal) {
+      _commitSeekPreview();
     }
     _dragAxis = null;
     _dragOrigin = null;
-    _seekPreview = null;
     _scheduleHudHide();
+  }
+
+  /// 提交拖动预览：真正 seek 并清掉预览值。
+  void _commitSeekPreview() {
+    final controller = _controller;
+    final preview = _seekPreview;
+    if (controller != null && preview != null) {
+      controller.seekToFraction(preview);
+    }
+    if (mounted && _seekPreview != null) {
+      setState(() => _seekPreview = null);
+    }
   }
 
   void _showHud(IconData icon, String text) {
@@ -720,8 +729,6 @@ class _PlayerPageState extends State<PlayerPage> {
 
   Widget _buildBottomBar(R34PlayerController controller) {
     final progress = _seekPreview ?? controller.progress;
-    final buffered = controller.bufferedProgress;
-    final secondary = buffered > progress ? buffered : progress;
     return Padding(
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.md,
@@ -746,24 +753,13 @@ class _PlayerPageState extends State<PlayerPage> {
                 ),
               ),
               Expanded(
-                child: SliderTheme(
-                  data: SliderTheme.of(context).copyWith(
-                    trackHeight: 2.5,
-                    activeTrackColor: AppColors.primary,
-                    inactiveTrackColor: Colors.white24,
-                    // 已缓冲区间：比未加载部分亮，但比已播放部分暗。
-                    secondaryActiveTrackColor: Colors.white38,
-                    thumbColor: AppColors.primary,
-                    overlayColor: AppColors.primary.withValues(alpha: 0.2),
-                    thumbShape: const RoundSliderThumbShape(
-                      enabledThumbRadius: 6,
-                    ),
-                  ),
-                  child: Slider(
-                    value: progress,
-                    secondaryTrackValue: secondary,
-                    onChanged: (value) => controller.seekToFraction(value),
-                  ),
+                child: _PlayerProgressBar(
+                  progress: progress,
+                  bufferStart: controller.bufferedStartProgress,
+                  bufferEnd: controller.bufferedProgress,
+                  onChanged: (fraction) =>
+                      setState(() => _seekPreview = fraction),
+                  onChangeEnd: _commitSeekPreview,
                 ),
               ),
               Text(
@@ -887,5 +883,130 @@ class _RoundIconButton extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// 自绘的播放进度条：同时表达「已播放」和「已缓冲区间」两段。
+///
+/// 不用 [Slider] 是因为它只能表达「从 0 到某个值」的区间，无法表示 seek
+/// 之后从新位置开始的缓存窗口（旧缓存已被丢弃）。
+class _PlayerProgressBar extends StatelessWidget {
+  const _PlayerProgressBar({
+    required this.progress,
+    required this.bufferStart,
+    required this.bufferEnd,
+    required this.onChanged,
+    required this.onChangeEnd,
+  });
+
+  /// 播放位置（拖动时为预览位置），0~1。
+  final double progress;
+
+  /// 缓存窗口起止，0~1。
+  final double bufferStart;
+  final double bufferEnd;
+
+  /// 拖动中持续回调预览值。
+  final ValueChanged<double> onChanged;
+
+  /// 松手/点击结束时回调，用于提交 seek。
+  final VoidCallback onChangeEnd;
+
+  /// 触摸热区高度：轨道很细，需要更大的手指落点。
+  static const double _height = 28;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: _height,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          if (width <= 0) {
+            return const SizedBox.shrink();
+          }
+          double fractionOf(double dx) => (dx / width).clamp(0.0, 1.0);
+          return GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (details) =>
+                onChanged(fractionOf(details.localPosition.dx)),
+            onTapUp: (_) => onChangeEnd(),
+            onHorizontalDragStart: (details) =>
+                onChanged(fractionOf(details.localPosition.dx)),
+            onHorizontalDragUpdate: (details) =>
+                onChanged(fractionOf(details.localPosition.dx)),
+            onHorizontalDragEnd: (_) => onChangeEnd(),
+            child: CustomPaint(
+              painter: _ProgressTrackPainter(
+                progress: progress,
+                bufferStart: bufferStart,
+                bufferEnd: bufferEnd,
+              ),
+              child: const SizedBox.expand(),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ProgressTrackPainter extends CustomPainter {
+  const _ProgressTrackPainter({
+    required this.progress,
+    required this.bufferStart,
+    required this.bufferEnd,
+  });
+
+  final double progress;
+  final double bufferStart;
+  final double bufferEnd;
+
+  static const double _trackHeight = 2.5;
+  static const double _thumbRadius = 6;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final centerY = size.height / 2;
+
+    void drawRange(double from, double to, Color color) {
+      if (to <= from) {
+        return;
+      }
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTRB(
+            from * size.width,
+            centerY - _trackHeight / 2,
+            to * size.width,
+            centerY + _trackHeight / 2,
+          ),
+          Radius.circular(_trackHeight / 2),
+        ),
+        Paint()..color = color,
+      );
+    }
+
+    // 未加载 → 已缓冲 → 已播放，逐层覆盖。
+    drawRange(0, 1, Colors.white24);
+    drawRange(bufferStart, bufferEnd, Colors.white38);
+    drawRange(0, progress, AppColors.primary);
+
+    final maxX = size.width - _thumbRadius;
+    final thumbX = maxX <= _thumbRadius
+        ? size.width / 2
+        : (progress * size.width).clamp(_thumbRadius, maxX);
+    canvas.drawCircle(
+      Offset(thumbX, centerY),
+      _thumbRadius,
+      Paint()..color = AppColors.primary,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _ProgressTrackPainter oldDelegate) {
+    return oldDelegate.progress != progress ||
+        oldDelegate.bufferStart != bufferStart ||
+        oldDelegate.bufferEnd != bufferEnd;
   }
 }

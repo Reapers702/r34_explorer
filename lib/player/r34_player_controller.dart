@@ -57,6 +57,7 @@ class R34PlayerController extends ChangeNotifier {
   Duration _position = Duration.zero;
   Duration _duration = Duration.zero;
   Duration _buffer = Duration.zero;
+  Duration _bufferStart = Duration.zero;
   int _width = 0;
   int _height = 0;
   double _volume = 100;
@@ -110,19 +111,21 @@ class R34PlayerController extends ChangeNotifier {
 
   String? get error => _error;
 
-  double get progress {
-    if (_duration.inMilliseconds <= 0) {
-      return 0;
-    }
-    return (_position.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0);
-  }
+  double get progress => _progressOf(_position);
 
-  /// 已缓冲位置占全片时长的比例（0~1），用于进度条高亮已加载区间。
-  double get bufferedProgress {
+  /// 当前 demuxer 缓存窗口的起点/终点占全片时长的比例（0~1）。
+  ///
+  /// 缓存是滑动窗口：seek 之后旧缓存会被丢弃，起点会跳到新位置附近，
+  /// 所以不能简单地把「终点」当成「从头累计下载了多少」。
+  double get bufferedStartProgress => _progressOf(_bufferStart);
+
+  double get bufferedProgress => _progressOf(_buffer);
+
+  double _progressOf(Duration value) {
     if (_duration.inMilliseconds <= 0) {
       return 0;
     }
-    return (_buffer.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0);
+    return (value.inMilliseconds / _duration.inMilliseconds).clamp(0.0, 1.0);
   }
 
   /// 当前清晰度 URL 对应的 HTTP 头。
@@ -167,6 +170,10 @@ class R34PlayerController extends ChangeNotifier {
         _safeNotify();
       }),
       _player.stream.buffer.listen((value) {
+        // 终点突然回退说明 demuxer cache 被 flush（内部 seek），缓存窗口跟着挪到新位置。
+        if (value < _buffer) {
+          _bufferStart = _position;
+        }
         _buffer = value;
         _safeNotify();
       }),
@@ -207,6 +214,8 @@ class R34PlayerController extends ChangeNotifier {
     _buffering = true;
     _position = Duration.zero;
     _duration = Duration.zero;
+    _buffer = Duration.zero;
+    _bufferStart = Duration.zero;
     _safeNotify();
 
     try {
@@ -244,7 +253,14 @@ class R34PlayerController extends ChangeNotifier {
 
   Future<void> playOrPause() => _player.playOrPause();
 
-  Future<void> seek(Duration position) => _player.seek(position);
+  /// 跳转到指定位置。
+  ///
+  /// seek 之后旧缓存会被丢弃，缓存窗口从新位置重新开始，所以这里同步挪动起点。
+  Future<void> seek(Duration position) {
+    _bufferStart = position;
+    _safeNotify();
+    return _player.seek(position);
+  }
 
   Future<void> seekToFraction(double fraction) {
     if (_duration.inMilliseconds <= 0) {
@@ -253,7 +269,7 @@ class R34PlayerController extends ChangeNotifier {
     final target = Duration(
       milliseconds: (_duration.inMilliseconds * fraction.clamp(0.0, 1.0)).round(),
     );
-    return _player.seek(target);
+    return seek(target);
   }
 
   Future<void> setVolume(double value) async {
@@ -267,12 +283,12 @@ class R34PlayerController extends ChangeNotifier {
   Future<void> skip(int seconds) {
     final target = _position + Duration(seconds: seconds);
     if (target < Duration.zero) {
-      return _player.seek(Duration.zero);
+      return seek(Duration.zero);
     }
     if (_duration > Duration.zero && target > _duration) {
-      return _player.seek(_duration);
+      return seek(_duration);
     }
-    return _player.seek(target);
+    return seek(target);
   }
 
   // ---- 控件显隐 ----
