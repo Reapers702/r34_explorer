@@ -18,6 +18,9 @@ class TabConst {
   static const int libraryTabIndex = 1;
   static const int userTabIndex = 2;
 
+  /// 「我的」在底部导航上的标签文案，rule34.xxx 站点不展示该 Tab。
+  static const String userTabLabel = '我的';
+
   static LinkedHashMap<TabEnum, MapEntry<String, IconData>> tabs =
       LinkedHashMap.from({
     TabEnum.homePage: const MapEntry('首页', Icons.home_outlined),

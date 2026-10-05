@@ -11,6 +11,11 @@ import 'package:r34_video/theme/app_colors.dart';
 ///
 /// 早期是手写的 `Row + GestureDetector`，点击热区只有图标大小；
 /// 换成 Material 3 的 [NavigationBar] 后水波纹、无障碍、安全区都由框架处理。
+///
+/// 站点不同，底部导航项也不同：
+/// * [R34Site.rule34video] —— 首页 / 收藏 / 我的（3 项）
+/// * [R34Site.rule34xxx]   —— 首页 / 收藏（2 项，无「我的」）
+/// 切换站点时若当前页在越界索引，自动回落到首页。
 class IndexPage extends StatefulWidget {
   const IndexPage({super.key});
 
@@ -22,8 +27,6 @@ class _IndexPageState extends State<IndexPage> {
   final PageController _pageController = PageController();
   int _currentIndex = 0;
 
-  /// 两个站点内容形态完全不同，首页按当前站点二选一。
-  /// （“我的”页共用，因为账号/设置对两边都适用。）
   late R34Site _site = SiteRegistry.instance.current;
 
   @override
@@ -32,10 +35,29 @@ class _IndexPageState extends State<IndexPage> {
     SiteRegistry.instance.addListener(_onSiteChanged);
   }
 
-  void _onSiteChanged() {
-    if (mounted) {
-      setState(() => _site = SiteRegistry.instance.current);
+  /// 当前站点对应的底部导航项。
+  List<MapEntry<String, IconData>> get _tabs {
+    final all = TabConst.tabs.values.toList();
+    // rule34.xxx 只有 首页 / 收藏。
+    if (_site == R34Site.rule34xxx) {
+      return all
+          .where((e) => e.key != TabConst.userTabLabel)
+          .toList();
     }
+    return all;
+  }
+
+  void _onSiteChanged() {
+    if (!mounted) {
+      return;
+    }
+    final next = SiteRegistry.instance.current;
+    // 站点切换后 tab 数量可能变少，越界则回落首页。
+    if (_currentIndex >= _tabs.length && _currentIndex != 0) {
+      _currentIndex = 0;
+      _pageController.jumpToPage(0);
+    }
+    setState(() => _site = next);
   }
 
   @override
@@ -46,6 +68,7 @@ class _IndexPageState extends State<IndexPage> {
   }
 
   Widget _buildPages() {
+    final hasUser = _site == R34Site.rule34video;
     return PageView(
       controller: _pageController,
       onPageChanged: (value) => setState(() => _currentIndex = value),
@@ -54,7 +77,7 @@ class _IndexPageState extends State<IndexPage> {
             ? const R34XxxHomePage()
             : const HomePage(),
         const LocalLibraryPage(),
-        const MyInfoPage(),
+        if (hasUser) const MyInfoPage(),
       ],
     );
   }
@@ -73,7 +96,7 @@ class _IndexPageState extends State<IndexPage> {
 
   @override
   Widget build(BuildContext context) {
-    final tabs = TabConst.tabs.values.toList();
+    final tabs = _tabs;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -108,7 +131,7 @@ class _IndexPageState extends State<IndexPage> {
             ),
           ),
           child: NavigationBar(
-            selectedIndex: _currentIndex,
+            selectedIndex: _currentIndex.clamp(0, tabs.length - 1),
             onDestinationSelected: _onSelect,
             labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
             destinations: tabs
