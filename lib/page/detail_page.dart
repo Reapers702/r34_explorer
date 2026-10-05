@@ -159,29 +159,40 @@ class _DetailPageState extends State<DetailPage>
             );
           }
 
-          return Column(
-            children: [
-              _buildHeader(video),
-              _buildTabs(),
-              Expanded(
-                child: TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildInfoTab(video),
-                    _buildCommentTab(),
-                  ],
-                ),
-              ),
-            ],
+          return LayoutBuilder(
+            builder: (context, constraints) {
+              // Header 用 16:9 比例，横屏/窄高窗口下会撑得比可用高度还高，
+              // 导致外层 Column 底部溢出。这里给个上限：不能超过可用高度的 45%。
+              final aspectHeight = constraints.maxWidth / 16 * 9;
+              final headerHeight = aspectHeight > constraints.maxHeight * 0.45
+                  ? constraints.maxHeight * 0.45
+                  : aspectHeight;
+
+              return Column(
+                children: [
+                  _buildHeader(video, height: headerHeight),
+                  _buildTabs(),
+                  Expanded(
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildInfoTab(video),
+                        _buildCommentTab(),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
           );
         },
       ),
     );
   }
 
-  Widget _buildHeader(R34VideoInfo video) {
-    return AspectRatio(
-      aspectRatio: 16 / 9,
+  Widget _buildHeader(R34VideoInfo video, {required double height}) {
+    return SizedBox(
+      height: height,
       child: GestureDetector(
         onTap: () => _openPlayer(video),
         child: Stack(
