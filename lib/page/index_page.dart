@@ -75,6 +75,8 @@ class _IndexPageState extends State<IndexPage> {
     return PageView(
       controller: _pageController,
       onPageChanged: (value) => setState(() => _currentIndex = value),
+      // 禁用手势滑动，只能通过底部 Tab 点击切换。
+      physics: const NeverScrollableScrollPhysics(),
       children: [
         _site == R34Site.rule34xxx
             ? const R34XxxHomePage()

@@ -30,6 +30,9 @@ class R34XxxHomePage extends StatefulWidget {
 
 class _R34XxxHomePageState extends State<R34XxxHomePage>
     with AutomaticKeepAliveClientMixin {
+  /// 跟 video 站首页一致：左右滑动翻页 + 跳页，而不是无限滚动。
+  final PageController _pageController = PageController();
+
   /// 当前已选 tag（原值，下划线形式，如 `ada_wong`）。
   List<String> _tags = const [];
 
@@ -99,6 +102,7 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
   void dispose() {
     _grid.removeListener(_onGridChanged);
     _grid.dispose();
+    _pageController.dispose();
     super.dispose();
   }
 
@@ -128,6 +132,9 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
     FocusManager.instance.primaryFocus?.unfocus();
     _recordCurrentSearch();
     await _grid.reset();
+    if (mounted && _pageController.hasClients) {
+      _pageController.jumpToPage(0);
+    }
   }
 
   /// 把当前 tag 组合记入「最近 tag」历史。
@@ -312,6 +319,17 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
             _total >= 0 ? '$_total 条' : '—',
             style: const TextStyle(fontSize: 12, color: AppColors.textHint),
           ),
+          const SizedBox(width: 4),
+          IconButton(
+            onPressed: _showPageSwitcher,
+            tooltip: '跳到指定页',
+            visualDensity: VisualDensity.compact,
+            icon: const Icon(
+              Icons.last_page_rounded,
+              size: 18,
+              color: AppColors.textSecondary,
+            ),
+          ),
         ],
       ),
     );
@@ -357,9 +375,7 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
   }
 
   Widget _buildGrid() {
-    final posts = _grid.videosOf(_grid.currentPage).cast<R34XxxPost>();
-
-    if (posts.isEmpty && _grid.loading) {
+    if (_grid.loading && _grid.videosOf(1).isEmpty) {
       return GridView.builder(
         padding: const EdgeInsets.all(AppSpacing.page),
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -372,47 +388,103 @@ class _R34XxxHomePageState extends State<R34XxxHomePage>
       );
     }
 
-    if (posts.isEmpty) {
-      return AppStateView.empty(
-        title: '这里没有内容',
-        description: _fullQuery.isEmpty
-            ? '接口可能限流了，稍后再试'
-            : '换个 tag 试试，多个 tag 用空格分隔',
-        actionLabel: '重新加载',
-        onAction: () => _grid.loadPage(_grid.currentPage),
-      );
-    }
+    // 跟 video 站首页一致：左右滑动按页切换，支持跳页。每页一个 3 列网格。
+    return PageView.builder(
+      controller: _pageController,
+      itemCount: _grid.pageCount,
+      onPageChanged: (index) => _grid.onPageChanged(index + 1),
+      itemBuilder: (context, index) {
+        final page = index + 1;
+        final posts = _grid.videosOf(page).cast<R34XxxPost>();
 
-    return RefreshIndicator(
-      color: AppColors.primary,
-      onRefresh: () => _grid.reset(),
-      child: NotificationListener<ScrollNotification>(
-        onNotification: (notification) {
-          if (notification.metrics.extentAfter < 800 &&
-              !_grid.loading &&
-              _grid.currentPage < _grid.pageCount) {
-            _grid.loadPage(_grid.currentPage + 1);
-          }
-          return false;
-        },
-        child: GridView.builder(
-          padding: const EdgeInsets.all(AppSpacing.page),
-          physics: const AlwaysScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: AppSpacing.sm,
-            mainAxisSpacing: AppSpacing.sm,
+        if (posts.isEmpty && _grid.loading) {
+          return GridView.builder(
+            padding: const EdgeInsets.all(AppSpacing.page),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: AppSpacing.sm,
+              mainAxisSpacing: AppSpacing.sm,
+            ),
+            itemCount: 12,
+            itemBuilder: (context, i) => const _GridSkeleton(),
+          );
+        }
+
+        if (posts.isEmpty) {
+          return AppStateView.empty(
+            title: '这一页没有内容',
+            description: _fullQuery.isEmpty
+                ? '接口可能限流了，稍后再试'
+                : '换个 tag 试试，多个 tag 用空格分隔',
+            actionLabel: '重新加载',
+            onAction: () => _grid.loadPage(page),
+          );
+        }
+
+        return RefreshIndicator(
+          color: AppColors.primary,
+          onRefresh: () => _grid.reset(),
+          child: GridView.builder(
+            padding: const EdgeInsets.all(AppSpacing.page),
+            physics: const AlwaysScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: AppSpacing.sm,
+              mainAxisSpacing: AppSpacing.sm,
+            ),
+            itemCount: posts.length,
+            itemBuilder: (context, i) => _XxxThumb(posts[i]),
           ),
-          itemCount: posts.length + (_grid.loading ? 3 : 0),
-          itemBuilder: (context, index) {
-            if (index >= posts.length) {
-              return const _GridSkeleton();
-            }
-            return _XxxThumb(posts[index]);
-          },
+        );
+      },
+    );
+  }
+
+  /// 跳到指定页（和 video 站首页一致）。
+  Future<void> _showPageSwitcher() async {
+    final controller = TextEditingController();
+    final target = await showDialog<int>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('跳到指定页'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(hintText: '1 - ${_grid.pageCount}'),
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('取消'),
+          ),
+          TextButton(
+            onPressed: () {
+              final page = int.tryParse(controller.text.trim());
+              if (page == null || page < 1 || page > _grid.pageCount) {
+                _toast('请输入 1 - ${_grid.pageCount} 之间的页码');
+                return;
+              }
+              Navigator.of(dialogContext).pop(page);
+            },
+            child: const Text('确定'),
+          ),
+        ],
       ),
     );
+    controller.dispose();
+
+    if (target != null && mounted && _pageController.hasClients) {
+      _pageController.jumpToPage(target - 1);
+    }
+  }
+
+  void _toast(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+      );
   }
 
   @override
