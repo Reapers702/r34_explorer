@@ -36,13 +36,11 @@ class _IndexPageState extends State<IndexPage> {
   }
 
   /// 当前站点对应的底部导航项。
-  List<MapEntry<String, IconData>> get _tabs {
+  List<MapEntry<String, IconData>> _tabsOf(R34Site site) {
     final all = TabConst.tabs.values.toList();
     // rule34.xxx 只有 首页 / 收藏。
-    if (_site == R34Site.rule34xxx) {
-      return all
-          .where((e) => e.key != TabConst.userTabLabel)
-          .toList();
+    if (site == R34Site.rule34xxx) {
+      return all.where((e) => e.key != TabConst.userTabLabel).toList();
     }
     return all;
   }
@@ -52,12 +50,17 @@ class _IndexPageState extends State<IndexPage> {
       return;
     }
     final next = SiteRegistry.instance.current;
-    // 站点切换后 tab 数量可能变少，越界则回落首页。
-    if (_currentIndex >= _tabs.length && _currentIndex != 0) {
-      _currentIndex = 0;
-      _pageController.jumpToPage(0);
-    }
-    setState(() => _site = next);
+    // 用目标站点计算可用 Tab 数：切到 Tab 更少的站点时，若当前页越界则回落首页，
+    // 否则 PageView 卸载多余页会触发 _InactiveElements._unmount 异常。
+    final maxIndex = _tabsOf(next).length - 1;
+    final nextIndex = _currentIndex > maxIndex ? 0 : _currentIndex;
+    setState(() {
+      _site = next;
+      if (nextIndex != _currentIndex) {
+        _currentIndex = nextIndex;
+        _pageController.jumpToPage(nextIndex);
+      }
+    });
   }
 
   @override
@@ -96,7 +99,7 @@ class _IndexPageState extends State<IndexPage> {
 
   @override
   Widget build(BuildContext context) {
-    final tabs = _tabs;
+    final tabs = _tabsOf(_site);
 
     return Scaffold(
       backgroundColor: AppColors.background,

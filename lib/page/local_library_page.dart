@@ -8,13 +8,13 @@ import 'package:r34_video/repo/local_content_repo.dart';
 import 'package:r34_video/theme/app_colors.dart';
 import 'package:r34_video/theme/app_dimens.dart';
 
-/// 本地收藏页。
+/// 本地收藏 / 浏览历史 页。
 ///
 /// 两个站（rule34.xxx 图片站 + rule34video 视频站）的内容统一成一个网格，
 /// 类型只决定点击后跳到哪套详情页。数据只存本机，不依赖登录。
 ///
-/// 注意：这里**只有本地收藏**，不包含浏览历史 —— 浏览历史已改走云端，
-/// 在「我的」页里以「浏览历史」子 Tab 展示（仅 rule34video 站）。
+/// 提供站点过滤：不限 / 只看 rule34.xxx / 只看 rule34video，对「收藏」和
+/// 「浏览历史」两个子 Tab 同时生效。
 class LocalLibraryPage extends StatefulWidget {
   const LocalLibraryPage({super.key});
 
@@ -22,10 +22,33 @@ class LocalLibraryPage extends StatefulWidget {
   State<LocalLibraryPage> createState() => _LocalLibraryPageState();
 }
 
+enum _SiteFilter { all, xxx, video }
+
 class _LocalLibraryPageState extends State<LocalLibraryPage> {
+  bool _favTab = true;
+  _SiteFilter _filter = _SiteFilter.all;
+
   void _reload() {
     if (mounted) {
       setState(() {});
+    }
+  }
+
+  void _onTabChanged(int index) {
+    if (mounted) {
+      setState(() => _favTab = index == 0);
+    }
+  }
+
+  /// 按站点过滤后的列表。
+  List<SavedContent> _filterBySite(List<SavedContent> items) {
+    switch (_filter) {
+      case _SiteFilter.all:
+        return items;
+      case _SiteFilter.xxx:
+        return items.where((e) => e.type == SavedType.xxx).toList();
+      case _SiteFilter.video:
+        return items.where((e) => e.type == SavedType.video).toList();
     }
   }
 
@@ -36,8 +59,10 @@ class _LocalLibraryPageState extends State<LocalLibraryPage> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('清空收藏'),
-        content: Text('确定清空全部 ${items.length} 条收藏？'),
+        title: Text(_favTab ? '清空收藏' : '清空历史'),
+        content: Text(
+          _favTab ? '确定清空全部 ${items.length} 条收藏？' : '确定清空全部浏览历史？',
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
@@ -53,7 +78,11 @@ class _LocalLibraryPageState extends State<LocalLibraryPage> {
     if (ok != true || !mounted) {
       return;
     }
-    await LocalContentRepo.clearFavorites();
+    if (_favTab) {
+      await LocalContentRepo.clearFavorites();
+    } else {
+      await LocalContentRepo.clearHistory();
+    }
     _reload();
   }
 
@@ -81,61 +110,123 @@ class _LocalLibraryPageState extends State<LocalLibraryPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      appBar: AppBar(
-        title: const Text('收藏'),
-        actions: [
-          FutureBuilder<List<SavedContent>>(
-            future: LocalContentRepo.favorites(),
-            builder: (context, snapshot) {
-              final items = snapshot.data ?? const <SavedContent>[];
-              return IconButton(
-                tooltip: '清空收藏',
-                onPressed:
-                    items.isEmpty ? null : () => _confirmClear(items),
-                icon: const Icon(Icons.delete_sweep_outlined),
-              );
-            },
-          ),
-        ],
-      ),
-      body: FutureBuilder<List<SavedContent>>(
-        future: LocalContentRepo.favorites(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final items = snapshot.data ?? const <SavedContent>[];
-          if (items.isEmpty) {
-            return AppStateView.empty(
-              title: '还没有收藏',
-              description: '在图片或视频详情页点收藏就能在这里看到',
-            );
-          }
-          return GridView.builder(
-            padding: const EdgeInsets.all(AppSpacing.page),
-            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: 3,
-              crossAxisSpacing: AppSpacing.sm,
-              mainAxisSpacing: AppSpacing.sm,
-              childAspectRatio: 3 / 4,
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          title: const Text('收藏'),
+          actions: [
+            FutureBuilder<List<SavedContent>>(
+              future: _favTab
+                  ? LocalContentRepo.favorites()
+                  : LocalContentRepo.history(),
+              builder: (context, snapshot) {
+                final items = snapshot.data ?? const <SavedContent>[];
+                return IconButton(
+                  tooltip: _favTab ? '清空收藏' : '清空历史',
+                  onPressed:
+                      items.isEmpty ? null : () => _confirmClear(items),
+                  icon: const Icon(Icons.delete_sweep_outlined),
+                );
+              },
             ),
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final item = items[index];
-              return _LibraryCell(
-                item: item,
-                onTap: () => _open(item),
-                onLongPress: () async {
-                  await LocalContentRepo.removeFavorite(item.keyId);
-                  _reload();
-                },
-              );
-            },
-          );
+          ],
+        ),
+        body: Column(
+          children: [
+            _buildFilterBar(),
+            TabBar(
+              onTap: _onTabChanged,
+              tabs: const [Tab(text: '收藏'), Tab(text: '浏览历史')],
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [_buildGrid(true), _buildGrid(false)],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 站点过滤条：不限 / rule34.xxx / rule34video。
+  Widget _buildFilterBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppSpacing.page,
+        AppSpacing.sm,
+        AppSpacing.page,
+        0,
+      ),
+      child: SegmentedButton<_SiteFilter>(
+        segments: const [
+          ButtonSegment(value: _SiteFilter.all, label: Text('不限')),
+          ButtonSegment(value: _SiteFilter.xxx, label: Text('rule34.xxx')),
+          ButtonSegment(value: _SiteFilter.video, label: Text('rule34video')),
+        ],
+        selected: {_filter},
+        showSelectedIcon: false,
+        style: const ButtonStyle(
+          visualDensity: VisualDensity.compact,
+        ),
+        onSelectionChanged: (selection) {
+          if (mounted) {
+            setState(() => _filter = selection.first);
+          }
         },
       ),
+    );
+  }
+
+  Widget _buildGrid(bool favorite) {
+    return FutureBuilder<List<SavedContent>>(
+      future: favorite
+          ? LocalContentRepo.favorites()
+          : LocalContentRepo.history(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        var items = _filterBySite(snapshot.data ?? const <SavedContent>[]);
+        if (items.isEmpty) {
+          final filtered = _filter != _SiteFilter.all;
+          return AppStateView.empty(
+            title: favorite ? '还没有收藏' : '还没有浏览记录',
+            description: filtered
+                ? (favorite ? '该站点暂无收藏' : '该站点暂无浏览记录')
+                : (favorite
+                    ? '在图片或视频详情页点收藏就能在这里看到'
+                    : '浏览过的图片、视频会出现在这里'),
+          );
+        }
+        return GridView.builder(
+          padding: const EdgeInsets.all(AppSpacing.page),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: AppSpacing.sm,
+            mainAxisSpacing: AppSpacing.sm,
+            childAspectRatio: 3 / 4,
+          ),
+          itemCount: items.length,
+          itemBuilder: (context, index) {
+            final item = items[index];
+            return _LibraryCell(
+              item: item,
+              onTap: () => _open(item),
+              onLongPress: () async {
+                if (favorite) {
+                  await LocalContentRepo.removeFavorite(item.keyId);
+                } else {
+                  await LocalContentRepo.removeHistory(item.keyId);
+                }
+                _reload();
+              },
+            );
+          },
+        );
+      },
     );
   }
 }

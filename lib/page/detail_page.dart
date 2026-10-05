@@ -56,11 +56,10 @@ class _DetailPageState extends State<DetailPage>
     _onViewed(arguments.r34video);
   }
 
-  /// 进入详情即同步收藏状态。
-  ///
-  /// 不再写本地浏览历史：历史已改走云端「我的」页（仅 rule34video 站），
-  /// 本地的 pushHistory 底层接口保留但不主动记录。
+  /// 进入详情即记一条本地历史并同步收藏状态。
+  ///（历史在「收藏」Tab 的“浏览历史”子页展示，按站点可过滤。）
   Future<void> _onViewed(R34Video video) async {
+    LocalContentRepo.pushHistory(SavedContent.fromVideo(video));
     final fav = await LocalContentRepo.isFavorite(video.detailUrl);
     if (mounted) {
       setState(() => _favorited = fav);
