@@ -83,8 +83,12 @@ class _DetailPageState extends State<DetailPage>
     super.dispose();
   }
 
+  /// 顶部缩略图：优先 kt_player 播放器解析出的直链（[R34VideoInfo.playUrls]），
+  /// 缺失时用下载链接兜底。
   void _openPlayer(R34VideoInfo video) {
-    if (video.playUrls.isEmpty && video.downloadUrls.isEmpty) {
+    final hasPlay = video.playUrls.isNotEmpty;
+    final hasDownload = video.downloadUrls.isNotEmpty;
+    if (!hasPlay && !hasDownload) {
       _toast('这个视频没有解析到可播放的地址');
       return;
     }
@@ -93,6 +97,28 @@ class _DetailPageState extends State<DetailPage>
       title: video.title,
       webUrls: video.playUrls,
       downloadUrls: video.downloadUrls,
+      durationText: _args?.r34video.videoDuration ?? '',
+      posterUrl: video.thumbImageUrl,
+      detailUrl: _args?.r34video.detailUrl,
+    );
+
+    if (args.resolutions.isEmpty) {
+      _toast('这个视频没有可播放的地址');
+      return;
+    }
+
+    Navigator.of(context).pushNamed(
+      PageRoutes.playerPage,
+      arguments: args,
+    );
+  }
+
+  /// 底部下载 Tag：只播该清晰度的下载直链。
+  void _openDownload(R34VideoInfo video, String label, String url) {
+    final args = PlayerArgs.fromUrls(
+      title: video.title,
+      webUrls: const {},
+      downloadUrls: {label: url},
       durationText: _args?.r34video.videoDuration ?? '',
       posterUrl: video.thumbImageUrl,
       detailUrl: _args?.r34video.detailUrl,
@@ -311,11 +337,11 @@ class _DetailPageState extends State<DetailPage>
               runSpacing: AppSpacing.sm,
               children: video.downloadUrls.entries
                   .map(
-                    (entry) => AppChip.text(
-                      entry.key,
-                      onTap: () => _openPlayer(video),
-                    ),
-                  )
+                  (entry) => AppChip.text(
+                    entry.key,
+                    onTap: () => _openDownload(video, entry.key, entry.value),
+                  ),
+                )
                   .toList(),
             ),
           ),

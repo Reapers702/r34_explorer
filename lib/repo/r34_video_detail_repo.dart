@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'package:html/parser.dart' as parser;
 import 'package:r34_video/constant/r34_const.dart';
 import 'package:r34_video/repo/entity/r34_video_info.dart';
@@ -6,8 +8,6 @@ import 'package:r34_video/util/http_trace_util.dart';
 import 'package:r34_video/util/r34_video_list_parser.dart';
 
 class R34VideoDetailRepo {
-  static final RegExp _videoAltUrlResolutionReg = RegExp(r'\d+_(\d+)p');
-
   static Future<R34VideoInfo?> getVideoInfo(String detailUrl) async {
     try {
       final res = await R34Client.instance.get(Uri.parse(detailUrl));
@@ -108,26 +108,29 @@ class R34VideoDetailRepo {
           : jsonProp;
       Map<String, String> jsonInfo = parseMap(jsonProp);
 
-      // 解析 Web 播放链接
+      // 解析 Web 播放链接（kt_player 播放器用的那套地址）。
+      //
+      // 实测站点 flashvars 里 video_url / video_alt_url* 已是带鉴权参数的完整
+      // 直链（形如 get_file/58/<cs>/.../<id>_<w>[p].mp4?v-acctoken=...），
+      // 不再需要 function/0/ 前缀 + cs 置换那套旧逻辑。
       final playUrls = <String, String>{};
+      final urlPattern = RegExp(r'_(\d+)p?\.mp4');
       for (var entry in jsonInfo.entries) {
-        if (entry.key.startsWith('video_alt_url') &&
-            entry.value.startsWith('function/0/')) {
-          final match = _videoAltUrlResolutionReg.firstMatch(entry.value);
-          if (match != null && match.groupCount >= 1) {
-            final resolution = '${match.group(1)!}p';
-            final oldCs = entry.value.split('/')[7].substring(0, 32);
-
-            final dlUrl = downloadUrls.entries
-                .firstWhere((e) => e.key.contains(resolution))
-                .value;
-            final newCs = dlUrl.split('/')[5].substring(0, 32);
-            final playUrl = entry.value
-                .replaceFirst('function/0/', '')
-                .replaceFirst(oldCs, newCs);
-            playUrls[resolution] = playUrl;
-          }
+        final isPlayerKey = entry.key == 'video_url' ||
+            (entry.key.startsWith('video_alt_url') &&
+                !entry.key.endsWith('_text'));
+        if (!isPlayerKey) {
+          continue;
         }
+        final value = entry.value.trim();
+        if (!value.startsWith('https://')) {
+          continue;
+        }
+        final match = urlPattern.firstMatch(value);
+        if (match == null || match.groupCount < 1) {
+          continue;
+        }
+        playUrls['${match.group(1)}p'] = value;
       }
 
       // 解析相关视频数据
@@ -201,4 +204,8 @@ class R34VideoDetailRepo {
     }
     return re;
   }
+
+  /// 供单元测试直接驱动 HTML 解析（不发起网络请求）。
+  @visibleForTesting
+  static R34VideoInfo? parseForTest(String html) => _parse(html);
 }
