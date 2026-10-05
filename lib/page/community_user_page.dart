@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:developer' as dev;
-
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:r34_video/constant/page_routes.dart';
@@ -96,8 +93,6 @@ class _CommunityUserPageState extends State<CommunityUserPage>
     _tabController = TabController(length: 2, vsync: this);
 
     _favoriteScrollController.addListener(() {
-      dev.log(
-          'current ${_favoriteScrollController.position.pixels}, max: ${_favoriteScrollController.position.maxScrollExtent}');
       if (_favoriteScrollController.position.pixels ==
               _favoriteScrollController.position.maxScrollExtent &&
           !_favoriteIsLoading) {
@@ -106,8 +101,6 @@ class _CommunityUserPageState extends State<CommunityUserPage>
     });
 
     _uploadScrollController.addListener(() {
-      dev.log(
-          'current ${_uploadScrollController.position.pixels}, max: ${_uploadScrollController.position.maxScrollExtent}');
       if (_uploadScrollController.position.pixels ==
               _uploadScrollController.position.maxScrollExtent &&
           !_uploadIsLoading) {
@@ -137,7 +130,6 @@ class _CommunityUserPageState extends State<CommunityUserPage>
         future: _communityUserFuture,
         builder: (context, snapshot) {
           final communityUser = snapshot.data;
-          dev.log('communityUser: ${jsonEncode(communityUser)}');
           return CustomScrollView(
             slivers: [
               // 可浮动且吸顶的 Container
@@ -262,13 +254,35 @@ class _FloatingContainerDelegate extends SliverPersistentHeaderDelegate {
         children: [
           Container(
             height: screenTopPadding,
-            color: AppColors.surface,
+            color: AppColors.primaryDark,
           ),
           Container(
             height: currentHeight - screenTopPadding,
-            color: AppColors.surface,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [
+                  AppColors.primaryDark,
+                  AppColors.primary,
+                ],
+              ),
+            ),
             child: Stack(
               children: [
+                // 桌面端没有系统返回键，这里给个显式返回入口。
+                if (Navigator.of(context).canPop())
+                  Positioned(
+                    left: 4,
+                    top: 0,
+                    child: IconButton(
+                      onPressed: () => Navigator.of(context).maybePop(),
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
                 ...(_userSelf
                     ? [
                         Positioned(
@@ -279,7 +293,10 @@ class _FloatingContainerDelegate extends SliverPersistentHeaderDelegate {
                               Navigator.of(context)
                                   .pushNamed(PageRoutes.settingsPage);
                             },
-                            icon: const Icon(Icons.more_horiz_outlined),
+                            icon: const Icon(
+                              Icons.more_horiz_outlined,
+                              color: Colors.white,
+                            ),
                           ),
                         )
                       ]
@@ -312,7 +329,7 @@ class _FloatingContainerDelegate extends SliverPersistentHeaderDelegate {
                     style: TextStyle(
                       fontSize: nickSize,
                       fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
+                      color: Colors.white,
                     ),
                   ),
                 ),
@@ -325,7 +342,7 @@ class _FloatingContainerDelegate extends SliverPersistentHeaderDelegate {
                         '粉丝 ${_communityUser?.subscriberCount ?? "-"}',
                         style: const TextStyle(
                           fontSize: 12,
-                          color: AppColors.textHint,
+                          color: Colors.white70,
                         ),
                       ),
                     ],
@@ -340,7 +357,7 @@ class _FloatingContainerDelegate extends SliverPersistentHeaderDelegate {
   }
 
   @override
-  double get maxExtent => 240;
+  double get maxExtent => 180;
   @override
   double get minExtent => 80;
 
