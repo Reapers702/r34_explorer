@@ -31,6 +31,26 @@ const _watchHistoryBody = '''
 ///
 /// 早期只有 首页/上传/收藏 三种 ParseType。新增云端浏览历史后，
 /// watchHistory 复用同一套卡片解析，这里验证容器 id 映射正确。
+/// 包含广告卡片（无封面图）的浏览历史页样本。
+const _adBody = '''
+<html><body>
+  <div id="list_videos_my_watch_history_items">
+    <div class="item thumb watched">
+      <a class="th js-open-popup" href="https://rule34video.com/video/3143712/rainy/" title="Rainy">
+        <div class="img wrap_image">
+          <img class="thumb lazy-load" src="https://rule34video.com/contents/screenshots/1.jpg">
+        </div>
+      </a>
+    </div>
+    <div class="item thumb watched">
+      <a class="th js-open-popup" href="https://rule34video.com/ad/" title="Advertisement">
+        <div class="img wrap_image"></div>
+      </a>
+    </div>
+  </div>
+</body></html>
+''';
+
 void main() {
   group('parsePageCount', () {
     test('搜索结果分页：02/03/…/Last(424)，应返回 424 而不是 2', () {
@@ -129,6 +149,16 @@ void main() {
         body: '<html><body><div/></body></html>',
       );
       expect(videos, isEmpty);
+    });
+
+    test('无封面的广告卡片应被跳过，只解析出正常视频', () {
+      final videos = R34VideoListParser.parseDocToVideo(
+        ParseType.watchHistory,
+        body: _adBody,
+      );
+      expect(videos, hasLength(1));
+      expect(videos[0].title, 'Rainy');
+      expect(videos[0].detailUrl, 'https://rule34video.com/video/3143712/rainy/');
     });
   });
 }

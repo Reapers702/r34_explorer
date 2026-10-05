@@ -90,6 +90,11 @@ class R34VideoListParser {
     final previewWrap = anchor.querySelector('div.img.wrap_image');
     final videoPreviewUrl = previewWrap?.attributes['data-preview'] ?? '';
 
+    // 广告卡片（Advertisement）没有封面图，跳过，避免点进详情页后出错。
+    if (thumbImageUrl.isEmpty) {
+      return null;
+    }
+
     final duration = anchor.querySelector('div.time')?.text.trim() ?? '';
 
     return R34Video(
@@ -233,6 +238,11 @@ class R34VideoListParser {
         img?.attributes['data-original'] ??
         img?.attributes['src'] ??
         '';
+
+    // 广告卡片（Advertisement）没有封面图，跳过，避免点进详情页后出错。
+    if (thumbImageUrl.isEmpty) {
+      return null;
+    }
 
     final ratingInfo = anchor.querySelector('div.rating')?.text.trim() ?? '';
     final match = _ratingInfoReg.firstMatch(ratingInfo);
