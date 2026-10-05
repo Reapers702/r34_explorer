@@ -9,7 +9,8 @@ import 'package:r34_video/theme/app_colors.dart';
 
 class CommunityUserPageArg {
   final int userId;
-  CommunityUserPageArg({required this.userId});
+  final String? avatarUrl;
+  CommunityUserPageArg({required this.userId, this.avatarUrl});
 }
 
 class CommunityUserPage extends StatefulWidget {
@@ -25,6 +26,7 @@ class CommunityUserPage extends StatefulWidget {
 class _CommunityUserPageState extends State<CommunityUserPage>
     with SingleTickerProviderStateMixin {
   int? _userId;
+  String? _avatarUrl;
   late TabController _tabController;
   Future<R34CommunityUser?>? _communityUserFuture;
 
@@ -41,10 +43,12 @@ class _CommunityUserPageState extends State<CommunityUserPage>
     if (_userId == null) {
       if (widget.userId != null) {
         _userId = widget.userId!;
+        _avatarUrl = null;
       } else {
         final CommunityUserPageArg pageArg =
             ModalRoute.of(context)?.settings.arguments as CommunityUserPageArg;
         _userId = pageArg.userId;
+        _avatarUrl = pageArg.avatarUrl;
       }
     }
     return _userId!;
@@ -132,11 +136,14 @@ class _CommunityUserPageState extends State<CommunityUserPage>
           final communityUser = snapshot.data;
           return CustomScrollView(
             slivers: [
-              // 可浮动且吸顶的 Container
+              // 固定高度的用户信息头部（无随滚缩放动画）。
               SliverPersistentHeader(
                 pinned: true,
-                delegate:
-                    _FloatingContainerDelegate(communityUser, widget.userSelf),
+                delegate: _UserHeaderDelegate(
+                  communityUser: communityUser,
+                  userSelf: widget.userSelf,
+                  avatarUrl: _avatarUrl,
+                ),
               ),
               // 吸顶的 TabBar
               SliverPersistentHeader(
@@ -196,170 +203,125 @@ class _CommunityUserPageState extends State<CommunityUserPage>
   }
 }
 
-// 可浮动且吸顶的 Container 的代理类
-class _FloatingContainerDelegate extends SliverPersistentHeaderDelegate {
+// 固定的用户信息头部。
+//
+// 不再做随滚动缩放/移位的动画：桌面端观感差且状态栏适配麻烦。
+// 高度固定（pinned 吸顶但不变形），头像直接用入站 [avatarUrl]，
+// 无需等用户详情接口返回就能先展示。
+class _UserHeaderDelegate extends SliverPersistentHeaderDelegate {
   final R34CommunityUser? _communityUser;
   final bool _userSelf;
+  final String? _avatarUrl;
 
-  _FloatingContainerDelegate(this._communityUser, this._userSelf);
+  _UserHeaderDelegate({
+    required R34CommunityUser? communityUser,
+    required bool userSelf,
+    required String? avatarUrl,
+  })  : _communityUser = communityUser,
+        _userSelf = userSelf,
+        _avatarUrl = avatarUrl;
 
   @override
   Widget build(
       BuildContext context, double shrinkOffset, bool overlapsContent) {
-    final screenTopPadding = MediaQuery.of(context).padding.top;
-    final screenWidth = MediaQuery.of(context).size.width;
+    final topPadding = MediaQuery.of(context).padding.top;
+    final avatarUrl = _avatarUrl ?? _communityUser?.avatarUrl;
+    final nickname =
+        _communityUser?.nickName ?? (_userSelf ? '我的昵称' : '作者');
 
-    final double maxAvatarSize = (maxExtent - screenTopPadding) * 0.5;
-    final Offset maxAvatarOffset =
-        Offset(screenWidth * 0.1, maxExtent * 0.4 - maxAvatarSize * 0.5);
-
-    final double minAvatarSize = (minExtent - screenTopPadding) * 0.8;
-    final Offset minAvatarOffset =
-        Offset(screenWidth * 0.3, (minExtent - screenTopPadding) * 0.1);
-
-    final double maxNickSize = 20;
-    final Offset maxNickOffset = Offset(screenWidth * 0.5, maxExtent * 0.2);
-    final double minNickSize = 20;
-    final Offset minNickOffset = Offset(
-      minAvatarOffset.dx + minAvatarSize + screenWidth * 0.05,
-      (minExtent - screenTopPadding) * 0.2,
-    );
-
-    shrinkOffset = shrinkOffset.clamp(0.0, maxExtent - minExtent);
-    final double visiblePercentage =
-        (maxExtent - minExtent - shrinkOffset) / (maxExtent - minExtent);
-    final double currentHeight =
-        minExtent + (maxExtent - minExtent) * visiblePercentage;
-    // dev.log('shrinkOffset: $shrinkOffset');
-    // dev.log(
-    //     'current precent: $visiblePercentage, currentHeight: $currentHeight');
-
-    final avatarLeft = minAvatarOffset.dx +
-        visiblePercentage * (maxAvatarOffset.dx - minAvatarOffset.dx);
-    final avatarTop = minAvatarOffset.dy +
-        visiblePercentage * (maxAvatarOffset.dy - minAvatarOffset.dy);
-    final avatarSize =
-        minAvatarSize + visiblePercentage * (maxAvatarSize - minAvatarSize);
-
-    final nickLeft = minNickOffset.dx +
-        visiblePercentage * (maxNickOffset.dx - minNickOffset.dx);
-    final nickTop = minNickOffset.dy +
-        visiblePercentage * (maxNickOffset.dy - minNickOffset.dy);
-    final nickSize =
-        minNickSize + visiblePercentage * (maxNickSize - minNickSize);
-
-    return SizedBox(
-      height: currentHeight,
-      child: Column(
+    return Container(
+      height: maxExtent,
+      padding: EdgeInsets.only(top: topPadding),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFF23202E), Color(0xFF3A2C44)],
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Container(
-            height: screenTopPadding,
-            color: AppColors.primaryDark,
-          ),
-          Container(
-            height: currentHeight - screenTopPadding,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  AppColors.primaryDark,
-                  AppColors.primary,
-                ],
+          // 桌面端没有系统返回键，这里给个显式返回入口。
+          if (Navigator.of(context).canPop())
+            IconButton(
+              icon: const Icon(
+                Icons.arrow_back_ios_new,
+                size: 20,
+                color: Colors.white,
               ),
+              onPressed: () => Navigator.of(context).maybePop(),
             ),
-            child: Stack(
+          const SizedBox(width: 4),
+          Container(
+            width: 60,
+            height: 60,
+            margin: const EdgeInsets.symmetric(horizontal: 14),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(30),
+              child: avatarUrl == null
+                  ? Image.asset(
+                      'assets/images/theporndude.png',
+                      fit: BoxFit.cover,
+                    )
+                  : CachedNetworkImage(
+                      imageUrl: avatarUrl,
+                      fit: BoxFit.cover,
+                      placeholder: (context, url) => const Icon(
+                        Icons.person_rounded,
+                        size: 32,
+                        color: Colors.white38,
+                      ),
+                      errorWidget: (context, url, error) => Image.asset(
+                        'assets/images/theporndude.png',
+                        fit: BoxFit.cover,
+                      ),
+                    ),
+            ),
+          ),
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // 桌面端没有系统返回键，这里给个显式返回入口。
-                if (Navigator.of(context).canPop())
-                  Positioned(
-                    left: 4,
-                    top: 0,
-                    child: IconButton(
-                      onPressed: () => Navigator.of(context).maybePop(),
-                      icon: const Icon(
-                        Icons.arrow_back_ios_new,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ...(_userSelf
-                    ? [
-                        Positioned(
-                          right: 10,
-                          top: 0,
-                          child: IconButton(
-                            onPressed: () async {
-                              Navigator.of(context)
-                                  .pushNamed(PageRoutes.settingsPage);
-                            },
-                            icon: const Icon(
-                              Icons.more_horiz_outlined,
-                              color: Colors.white,
-                            ),
-                          ),
-                        )
-                      ]
-                    : []),
-                Positioned(
-                  left: avatarLeft,
-                  top: avatarTop,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(avatarSize),
-                    child: _communityUser != null
-                        ? CachedNetworkImage(
-                            imageUrl: _communityUser.avatarUrl,
-                            width: avatarSize,
-                            height: avatarSize,
-                            fit: BoxFit.fill,
-                          )
-                        : Image.asset(
-                            'assets/images/theporndude.png',
-                            width: avatarSize,
-                            height: avatarSize,
-                            fit: BoxFit.fill,
-                          ),
+                Text(
+                  nickname,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
                   ),
                 ),
-                Positioned(
-                  left: nickLeft,
-                  top: nickTop,
-                  child: Text(
-                    _communityUser?.nickName ?? '我的昵称',
-                    style: TextStyle(
-                      fontSize: nickSize,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-                Positioned(
-                  left: maxNickOffset.dx,
-                  top: maxNickOffset.dy + maxNickSize + 10,
-                  child: Column(
-                    children: [
-                      Text(
-                        '粉丝 ${_communityUser?.subscriberCount ?? "-"}',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.white70,
-                        ),
-                      ),
-                    ],
-                  ),
+                const SizedBox(height: 4),
+                Text(
+                  '粉丝 ${_communityUser?.subscriberCount ?? "-"}',
+                  style: const TextStyle(fontSize: 13, color: Colors.white70),
                 ),
               ],
             ),
           ),
+          if (_userSelf)
+            IconButton(
+              icon: const Icon(
+                Icons.more_horiz_outlined,
+                color: Colors.white,
+              ),
+              onPressed: () => Navigator.of(context)
+                  .pushNamed(PageRoutes.settingsPage),
+            ),
+          const SizedBox(width: 8),
         ],
       ),
     );
   }
 
+  // 固定高度：max == min，因此滚动时不变形、头像不移动。
   @override
-  double get maxExtent => 180;
+  double get maxExtent => 128;
   @override
-  double get minExtent => 80;
+  double get minExtent => 128;
 
   @override
   bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) =>

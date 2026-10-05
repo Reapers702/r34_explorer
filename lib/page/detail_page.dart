@@ -337,7 +337,10 @@ class _DetailPageState extends State<DetailPage>
       onTap: () {
         Navigator.of(context).pushNamed(
           PageRoutes.communityUserPage,
-          arguments: CommunityUserPageArg(userId: uploader.id),
+          arguments: CommunityUserPageArg(
+            userId: uploader.id,
+            avatarUrl: uploader.avatarUrl,
+          ),
         );
       },
       child: Container(
