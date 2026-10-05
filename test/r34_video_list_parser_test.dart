@@ -2,12 +2,35 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:html/parser.dart' as parser;
 import 'package:r34_video/util/r34_video_list_parser.dart';
 
-/// [R34VideoListParser.parsePageCount] 的单元测试。
+/// 浏览历史页卡片样本（`/my/history/` 整页内 `list_videos_my_watch_history_items`
+/// 容器，DOM 与原始页面一致）。
+const _watchHistoryBody = '''
+<html><body>
+  <div id="list_videos_my_watch_history_items">
+    <div class="item thumb video_1 watched">
+      <a class="th js-open-popup" href="https://rule34video.com/video/3143712/rainy/" title="Rainy">
+        <div class="img wrap_image" data-preview="https://rule34video.com/get_file/58/preview.mp4/">
+          <img class="thumb lazy-load" src="https://rule34video.com/contents/screenshots/1.jpg" data-webp="https://rule34video.com/contents/screenshots/1.webp">
+        </div>
+        <div class="time">1:02:03</div>
+      </a>
+    </div>
+    <div class="item thumb watched">
+      <a class="th js-open-popup" href="https://rule34video.com/video/999/test/" title="Test Video">
+        <div class="img wrap_image">
+          <img class="thumb lazy-load" src="https://rule34video.com/contents/screenshots/2.jpg">
+        </div>
+        <div class="time">12:34</div>
+      </a>
+    </div>
+  </div>
+</body></html>
+''';
+
+/// [R34VideoListParser.parseDocToVideo] 的单元测试。
 ///
-/// 站点每个分页链接都带 `data-parameters`（如 `from_videos+from_albums:02`），
-/// 且结果页的链接顺序是 01、02、03…、Last。早期实现遇到第二个链接
-/// （数字 02 > 1）就提前 break，导致任何搜索都只显示 2 页 —— 这里用
-/// 真实抓到的 DOM 形态做回归。
+/// 早期只有 首页/上传/收藏 三种 ParseType。新增云端浏览历史后，
+/// watchHistory 复用同一套卡片解析，这里验证容器 id 映射正确。
 void main() {
   group('parsePageCount', () {
     test('搜索结果分页：02/03/…/Last(424)，应返回 424 而不是 2', () {
@@ -75,6 +98,37 @@ void main() {
         R34VideoListParser.parsePageCount(doc, ParseType.related),
         1,
       );
+    });
+  });
+
+  group('parseDocToVideo watchHistory', () {
+    test('应解析出浏览历史的两张卡片，并复用卡片字段', () {
+      final videos = R34VideoListParser.parseDocToVideo(
+        ParseType.watchHistory,
+        body: _watchHistoryBody,
+      );
+
+      expect(videos, hasLength(2));
+      expect(videos[0].title, 'Rainy');
+      expect(
+        videos[0].detailUrl,
+        'https://rule34video.com/video/3143712/rainy/',
+      );
+      expect(
+        videos[0].thumbImageUrl,
+        'https://rule34video.com/contents/screenshots/1.webp',
+      );
+      expect(videos[0].duration, '1:02:03');
+      expect(videos[1].title, 'Test Video');
+      expect(videos[1].duration, '12:34');
+    });
+
+    test('容器不存在：应返回空列表', () {
+      final videos = R34VideoListParser.parseDocToVideo(
+        ParseType.watchHistory,
+        body: '<html><body><div/></body></html>',
+      );
+      expect(videos, isEmpty);
     });
   });
 }

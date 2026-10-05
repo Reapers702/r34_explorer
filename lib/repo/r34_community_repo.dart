@@ -120,4 +120,29 @@ class R34CommunityRepo {
       return const [];
     }
   }
+
+  /// 云端浏览历史。
+  ///
+  /// 登录用户的观看历史是服务端直出的整页 HTML（无 `get_block` 分页接口，
+  /// 网页本身也只返回一页），所以这里直接抓整个页面、从固定容器解析。
+  static Future<List<R34CommunityVideo>> getUserWatchHistory() async {
+    final uri = Uri.https(R34Const.host, '/my/history/', {
+      '_': '${DateTime.now().millisecondsSinceEpoch}',
+    });
+
+    try {
+      final res = await R34Client.instance.get(uri);
+      if (res.statusCode != 200) {
+        HttpTraceUtil.handleHttpError(res.statusCode);
+        return const [];
+      }
+      return R34VideoListParser.parseDocToVideo(
+        ParseType.watchHistory,
+        body: res.body,
+      );
+    } catch (e, st) {
+      HttpTraceUtil.handleConnectionError(e, st: st);
+      return const [];
+    }
+  }
 }
