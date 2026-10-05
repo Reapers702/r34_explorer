@@ -1,8 +1,10 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:media_kit_video/media_kit_video.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:r34_video/player/player_args.dart';
 import 'package:r34_video/util/log_util.dart';
 
@@ -148,7 +150,42 @@ class R34PlayerController extends ChangeNotifier {
     }
     // 先应用记住的音量再打开，避免从默认 100 跳到记忆值。
     unawaited(setVolume(_initialVolume));
+    await _configureDiskCache();
     await _openIndex(_currentIndex, autoPlay: _autoPlay);
+  }
+
+  /// 后向（已播放）缓存上限。
+  ///
+  /// 开启磁盘缓存后内存占用与上限解耦，可以给得比前向缓存大很多，
+  /// 往回拖就不容易触发重新加载。想调大/调小只改这里。
+  static const int _backBufferBytes = 512 * 1024 * 1024;
+
+  /// 打开流之前配置磁盘缓存。
+  ///
+  /// [PlayerConfiguration] 只暴露 `bufferSize`，而 media_kit 在 native 侧把它
+  /// 同时当成 `demuxer-max-bytes` 和 `demuxer-max-back-bytes`，导致前后向绑死、
+  /// 内存占用翻倍。这里直接改底层 libmpv 属性：把 demuxer 缓存落到 App 缓存目录，
+  /// 内存占用与上限解耦，再单独放宽后向上限。
+  ///
+  /// 注意：这仍然只是会话级缓存，进程退出后由 mpv 释放，不跨会话保留。
+  Future<void> _configureDiskCache() async {
+    final platform = _player.platform;
+    if (platform is! NativePlayer) {
+      return;
+    }
+    try {
+      final base = await getTemporaryDirectory();
+      final dir = Directory('${base.path}${Platform.pathSeparator}mpv_cache');
+      if (!dir.existsSync()) {
+        dir.createSync(recursive: true);
+      }
+      await platform.setProperty('cache-on-disk', 'yes');
+      await platform.setProperty('demuxer-cache-dir', dir.path);
+      await platform.setProperty('demuxer-max-back-bytes', '$_backBufferBytes');
+    } catch (e) {
+      // 磁盘缓存只是优化项，失败就退回默认的内存缓存，不影响播放。
+      LogUtil.info('configure disk cache failed: $e');
+    }
   }
 
   void _attachStreams() {
