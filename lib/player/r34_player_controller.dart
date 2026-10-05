@@ -17,8 +17,10 @@ class R34PlayerController extends ChangeNotifier {
     String? preferredLabel,
     bool autoPlay = true,
     Duration? initialPosition,
+    double initialVolume = 100,
   })  : _autoPlay = autoPlay,
         _resumeAt = initialPosition,
+        _initialVolume = initialVolume,
         _currentIndex = args.initialIndex(preferredLabel) {
     _player = Player(
       configuration: const PlayerConfiguration(
@@ -37,6 +39,9 @@ class R34PlayerController extends ChangeNotifier {
   /// 需要续播的起点；null 表示从头播。
   final Duration? _resumeAt;
 
+  /// 记住的起始音量（0-100），打开视频后应用到内核。
+  final double _initialVolume;
+
   late final Player _player;
   late final VideoController _videoController;
 
@@ -54,6 +59,9 @@ class R34PlayerController extends ChangeNotifier {
   double _volume = 100;
   double _rate = 1.0;
   String? _error;
+
+  /// 音量变化回调（页面上用来持久化记忆音量）。
+  void Function(double volume)? onVolumeChanged;
 
   Timer? _hideTimer;
 
@@ -110,6 +118,8 @@ class R34PlayerController extends ChangeNotifier {
       _safeNotify();
       return;
     }
+    // 先应用记住的音量再打开，避免从默认 100 跳到记忆值。
+    unawaited(setVolume(_initialVolume));
     await _openIndex(_currentIndex, autoPlay: _autoPlay);
   }
 
@@ -204,7 +214,10 @@ class R34PlayerController extends ChangeNotifier {
     return _player.seek(target);
   }
 
-  Future<void> setVolume(double value) => _player.setVolume(value.clamp(0, 100));
+  Future<void> setVolume(double value) async {
+    await _player.setVolume(value.clamp(0, 100));
+    onVolumeChanged?.call(value.clamp(0, 100));
+  }
 
   Future<void> setRate(double value) => _player.setRate(value);
 

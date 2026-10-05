@@ -526,6 +526,25 @@ class _XxxThumb extends StatelessWidget {
                 ),
               ),
             ),
+            if (post.isVideo)
+              const Positioned.fill(
+                child: Center(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.black45,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Padding(
+                      padding: EdgeInsets.all(8),
+                      child: Icon(
+                        Icons.play_arrow_rounded,
+                        color: Colors.white,
+                        size: 22,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             if (post.rating == 'explicit')
               const Positioned(
                 left: 4,

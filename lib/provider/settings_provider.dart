@@ -63,6 +63,9 @@ class SettingsProvider extends ChangeNotifier {
 
   set preferredQuality(String? value) =>
       _update(() => settingsModel.preferredQuality = value);
+
+  set volume(double value) =>
+      _update(() => settingsModel.volume = value.clamp(0, 100));
 }
 
 class SettingsModel {
@@ -75,6 +78,9 @@ class SettingsModel {
   /// 首选清晰度标签（例如 `720p`），`null` 表示总是用最高清晰度。
   String? preferredQuality;
 
+  /// 记住的播放音量（0-100），跨视频沿用。
+  double volume = 100;
+
   String version = '1.0.0';
 
   SettingsModel({
@@ -82,9 +88,11 @@ class SettingsModel {
     bool? parseAutoRedirect,
     bool? autoPlay,
     this.preferredQuality,
+    double? volume,
   })  : playUrlType = playUrlType ?? PlayUrlType.webPlay,
         parseAutoRedirect = parseAutoRedirect ?? true,
-        autoPlay = autoPlay ?? true;
+        autoPlay = autoPlay ?? true,
+        volume = (volume ?? 100).clamp(0.0, 100.0).toDouble();
 
   factory SettingsModel.defaultSettings() {
     return SettingsModel(
@@ -100,6 +108,7 @@ class SettingsModel {
       'parseAutoRedirect': parseAutoRedirect,
       'autoPlay': autoPlay,
       'preferredQuality': preferredQuality,
+      'volume': volume,
       'version': version,
     };
   }
@@ -112,6 +121,7 @@ class SettingsModel {
       parseAutoRedirect: json['parseAutoRedirect'] ?? true,
       autoPlay: json['autoPlay'] ?? true,
       preferredQuality: json['preferredQuality'] as String?,
+      volume: (json['volume'] as num?)?.toDouble(),
     );
   }
 }

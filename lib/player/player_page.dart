@@ -11,6 +11,7 @@ import 'package:r34_video/provider/settings_provider.dart';
 import 'package:r34_video/repo/playback_progress_repo.dart';
 import 'package:r34_video/theme/app_colors.dart';
 import 'package:r34_video/theme/app_dimens.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// 应用内播放页。
 ///
@@ -30,6 +31,14 @@ class _PlayerPageState extends State<PlayerPage> {
   bool _initStarted = false;
   String? _detailUrl;
   Timer? _progressTimer;
+
+  /// 亮度手势（0~1，1 表示不遮罩）。
+  double _brightness = 1.0;
+
+  /// 当前竖向拖动手势作用在左（亮度）还是右（音量）半屏。
+  bool? _dragIsVolume;
+  double? _dragStartBrightness;
+  double? _dragStartVolume;
 
   @override
   void didChangeDependencies() {
@@ -64,7 +73,13 @@ class _PlayerPageState extends State<PlayerPage> {
       preferredLabel: settings.settingsModel.preferredQuality,
       autoPlay: settings.settingsModel.autoPlay,
       initialPosition: resume,
+      initialVolume: settings.settingsModel.volume,
     );
+    _controller!.onVolumeChanged = (volume) {
+      if (mounted) {
+        context.read<SettingsProvider>().volume = volume;
+      }
+    };
     await _controller!.initialize();
     if (!mounted) {
       return;
@@ -111,6 +126,31 @@ class _PlayerPageState extends State<PlayerPage> {
 
   void _leaveFullscreenSystemUi() {
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+  }
+
+  /// 呼起系统下载：把当前清晰度的直链交给系统下载器/浏览器保存。
+  Future<void> _callSystemDownload(R34PlayerController controller) async {
+    final current = controller.current;
+    if (current == null) {
+      _toast('当前没有可下载的地址');
+      return;
+    }
+    final url = current.url;
+    final ok = await launchUrl(Uri.parse(url));
+    if (!ok && mounted) {
+      _toast('无法呼起系统下载：$url');
+    }
+  }
+
+  void _toast(String message) {
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(content: Text(message), duration: const Duration(seconds: 2)),
+      );
   }
 
   void _toggleFullscreen() {
@@ -274,6 +314,7 @@ class _PlayerPageState extends State<PlayerPage> {
           )
         else
           _buildVideoSurface(controller),
+        _buildBrightnessOverlay(controller),
         _buildTouchLayer(controller),
         if (controller.error != null)
           _buildErrorLayer(controller)
@@ -308,7 +349,24 @@ class _PlayerPageState extends State<PlayerPage> {
     );
   }
 
+  /// 竖直滑动调亮度：只覆盖视频区域，黑色遮罩模拟变暗（不引额外依赖）。
+  Widget _buildBrightnessOverlay(R34PlayerController controller) {
+    if (_brightness >= 0.999) {
+      return const SizedBox.shrink();
+    }
+    return Positioned.fill(
+      child: IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: (1 - _brightness).clamp(0.0, 1.0)),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// 整屏的手势层：单击显隐控件，双击播放/暂停，连点两侧快进退。
+  /// 左侧竖直滑动调亮度，右侧竖直滑动调音量。
   Widget _buildTouchLayer(R34PlayerController controller) {
     return Positioned.fill(
       child: GestureDetector(
@@ -322,6 +380,33 @@ class _PlayerPageState extends State<PlayerPage> {
           } else if (details.localPosition.dx > width * 0.7) {
             controller.skip(10);
           }
+        },
+        onVerticalDragStart: (details) {
+          final width = MediaQuery.of(context).size.width;
+          final isVolume = details.localPosition.dx >= width * 0.5;
+          _dragIsVolume = isVolume;
+          _dragStartBrightness = _brightness;
+          _dragStartVolume = controller.volume;
+        },
+        onVerticalDragUpdate: (details) {
+          final height = MediaQuery.of(context).size.height;
+          // 手指上滑 -> 增大（detail.delta.dy 为负）。
+          final primary = details.primaryDelta;
+          final delta = primary == null ? 0.0 : -primary;
+          if (_dragIsVolume == true) {
+            final start = _dragStartVolume ?? controller.volume;
+            final next = (start + delta / height * 200).clamp(0.0, 100.0);
+            controller.setVolume(next);
+          } else if (_dragIsVolume == false) {
+            final start = _dragStartBrightness ?? _brightness;
+            final next = (start + delta / height * 200 / 100).clamp(0.0, 1.0);
+            setState(() => _brightness = next);
+          }
+        },
+        onVerticalDragEnd: (_) {
+          _dragIsVolume = null;
+          _dragStartBrightness = null;
+          _dragStartVolume = null;
         },
         child: const SizedBox.expand(),
       ),
@@ -419,6 +504,12 @@ class _PlayerPageState extends State<PlayerPage> {
                 fontWeight: FontWeight.w600,
               ),
             ),
+          ),
+          IconButton(
+            onPressed: () => _callSystemDownload(controller),
+            icon: const Icon(Icons.download_rounded, size: 20),
+            color: AppColors.onDark,
+            tooltip: '系统下载',
           ),
           if (controller.current != null)
             TextButton.icon(
