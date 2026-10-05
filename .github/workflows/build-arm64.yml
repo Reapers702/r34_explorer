@@ -1,0 +1,55 @@
+name: Build Android ARMv8
+
+# 仅当 push 的提交信息以 build: 开头时触发。
+on:
+  push:
+    branches:
+      - master
+      - main
+
+jobs:
+  build:
+    if: startsWith(github.event.head_commit.message, 'build:')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: 校验版本
+        run: flutter --version
+
+      - name: 安装依赖
+        run: flutter pub get
+
+      - name: 静态分析
+        run: flutter analyze
+
+      - name: 编译 Android ARMv8 (apk)
+        run: flutter build apk --release --target-platform android-arm64
+
+      - name: 创建版本标签
+        id: tag
+        run: |
+          TS=$(date -u +%Y%m%d%H%M%S)
+          echo "tag=build-$TS" >> "$GITHUB_OUTPUT"
+
+      - name: 发布版本并附带 APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Android ARMv8 (${{ github.sha }})
+          body: |
+            由 commit `${{ github.sha }}` 触发（`${{ github.event.head_commit.message }}`）
+            - 架构：arm64-v8a
+          files: |
+            build/app/outputs/flutter-apk/app-release.apk
+          fail_on_unmatched_files: true
